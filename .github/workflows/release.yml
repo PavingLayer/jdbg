@@ -1,0 +1,201 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Build Java server (platform-independent)
+  build-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build server JAR
+        run: cd server && ./mvnw package -DskipTests -q
+
+      - name: Upload server JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-jar
+          path: server/target/jdbg-server.jar
+
+  # Build CLI for each platform
+  build-cli:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: jdbg-linux-x86_64
+            binary: jdbg
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: jdbg-linux-aarch64
+            binary: jdbg
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: jdbg-macos-x86_64
+            binary: jdbg
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: jdbg-macos-aarch64
+            binary: jdbg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: jdbg-windows-x86_64
+            binary: jdbg.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protoc (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Install protoc (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install protobuf
+
+      - name: Install protoc (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install protoc
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build CLI
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          cd cli
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Create artifact directory
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp cli/target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.binary }}
+
+  # Create release with all artifacts
+  release:
+    needs: [build-server, build-cli]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          
+          # Package each platform
+          for platform in linux-x86_64 linux-aarch64 macos-x86_64 macos-aarch64; do
+            mkdir -p "pkg-${platform}"
+            
+            # Copy CLI binary
+            if [[ -f "artifacts/jdbg-${platform}/jdbg" ]]; then
+              cp "artifacts/jdbg-${platform}/jdbg" "pkg-${platform}/"
+              chmod +x "pkg-${platform}/jdbg"
+            fi
+            
+            # Copy server JAR
+            cp artifacts/server-jar/jdbg-server.jar "pkg-${platform}/"
+            
+            # Copy README and LICENSE
+            cp README.md "pkg-${platform}/"
+            [[ -f LICENSE ]] && cp LICENSE "pkg-${platform}/"
+            
+            # Create tarball
+            tar -czf "release/jdbg-${platform}.tar.gz" -C "pkg-${platform}" .
+            
+            # Create checksum
+            cd release && sha256sum "jdbg-${platform}.tar.gz" > "jdbg-${platform}.tar.gz.sha256" && cd ..
+          done
+          
+          # Package Windows
+          mkdir -p pkg-windows-x86_64
+          cp "artifacts/jdbg-windows-x86_64/jdbg.exe" pkg-windows-x86_64/
+          cp artifacts/server-jar/jdbg-server.jar pkg-windows-x86_64/
+          cp README.md pkg-windows-x86_64/
+          [[ -f LICENSE ]] && cp LICENSE pkg-windows-x86_64/
+          
+          cd pkg-windows-x86_64
+          zip -r ../release/jdbg-windows-x86_64.zip .
+          cd ..
+          cd release && sha256sum jdbg-windows-x86_64.zip > jdbg-windows-x86_64.zip.sha256 && cd ..
+          
+          # Also upload standalone server JAR
+          cp artifacts/server-jar/jdbg-server.jar release/
+          cd release && sha256sum jdbg-server.jar > jdbg-server.jar.sha256 && cd ..
+          
+          echo "=== Release assets ==="
+          ls -la release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: JDBG v${{ steps.version.outputs.version }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          generate_release_notes: true
+          files: |
+            release/jdbg-linux-x86_64.tar.gz
+            release/jdbg-linux-x86_64.tar.gz.sha256
+            release/jdbg-linux-aarch64.tar.gz
+            release/jdbg-linux-aarch64.tar.gz.sha256
+            release/jdbg-macos-x86_64.tar.gz
+            release/jdbg-macos-x86_64.tar.gz.sha256
+            release/jdbg-macos-aarch64.tar.gz
+            release/jdbg-macos-aarch64.tar.gz.sha256
+            release/jdbg-windows-x86_64.zip
+            release/jdbg-windows-x86_64.zip.sha256
+            release/jdbg-server.jar
+            release/jdbg-server.jar.sha256
+

@@ -10,7 +10,7 @@
 Add these JVM arguments to your target application:
 
 ```bash
-# For Java 9+
+# For Java 9+ (allows remote connections)
 -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000
 
 # For Java 8
@@ -19,63 +19,94 @@ Add these JVM arguments to your target application:
 
 ## Installation
 
-### From Binary Releases
+See the [Installation Guide](installation.md) for detailed instructions.
 
-Download the latest release for your platform:
+### Quick Install (Linux x86_64)
 
 ```bash
-# Linux/macOS
 curl -LO https://github.com/PavingLayer/jdbg/releases/latest/download/jdbg-linux-x86_64.tar.gz
 tar xzf jdbg-linux-x86_64.tar.gz
 sudo mv jdbg /usr/local/bin/
+sudo mkdir -p /usr/local/share/jdbg
 sudo mv jdbg-server.jar /usr/local/share/jdbg/
 ```
 
-### From Source
+### Quick Install (macOS Apple Silicon)
 
 ```bash
-# Clone the repository
+curl -LO https://github.com/PavingLayer/jdbg/releases/latest/download/jdbg-macos-aarch64.tar.gz
+tar xzf jdbg-macos-aarch64.tar.gz
+sudo mv jdbg /usr/local/bin/
+sudo mkdir -p /usr/local/share/jdbg
+sudo mv jdbg-server.jar /usr/local/share/jdbg/
+```
+
+### Build from Source
+
+```bash
 git clone https://github.com/PavingLayer/jdbg.git
 cd jdbg
 
 # Build the Rust CLI
-cd cli && cargo build --release
-cd ..
+cd cli && cargo build --release && cd ..
 
 # Build the Java server
-cd server && ./mvnw package -DskipTests
-cd ..
+cd server && ./mvnw package -DskipTests && cd ..
 
-# Install (optional)
-cp cli/target/release/jdbg ~/.local/bin/
-mkdir -p ~/.local/share/jdbg
-cp server/target/jdbg-server.jar ~/.local/share/jdbg/
+# Install
+sudo cp cli/target/release/jdbg /usr/local/bin/
+sudo mkdir -p /usr/local/share/jdbg
+sudo cp server/target/jdbg-server.jar /usr/local/share/jdbg/
 ```
 
 ## First Steps
 
-1. **Start the server**:
-   ```bash
-   jdbg server start
-   ```
+### 1. Start the JDBG Server
 
-2. **Attach to your JVM**:
-   ```bash
-   jdbg session attach --host localhost --port 8000
-   ```
+```bash
+jdbg server start
+```
 
-3. **Explore**:
-   ```bash
-   jdbg thread list
-   jdbg bp add --class com.example.Main --method main
-   jdbg exec suspend
-   jdbg frame list
-   jdbg exec resume
-   ```
+### 2. Attach to Your JVM
 
-4. **Cleanup**:
-   ```bash
-   jdbg session detach
-   jdbg server stop
-   ```
+```bash
+jdbg session attach --host localhost --port 8000
+```
 
+### 3. Explore
+
+```bash
+# List threads
+jdbg thread list
+
+# Add a breakpoint
+jdbg bp add --class com.example.Main --line 42
+
+# Suspend execution
+jdbg exec suspend
+
+# List stack frames
+jdbg frame list
+
+# List variables in current frame
+jdbg var list
+
+# Evaluate an expression
+jdbg eval "myVariable + 10"
+
+# Resume execution
+jdbg exec resume
+```
+
+### 4. Cleanup
+
+```bash
+jdbg session detach
+jdbg server stop
+```
+
+## Next Steps
+
+- [Commands Reference](../commands/index.md) - Full command documentation
+- [Architecture](../architecture.md) - How JDBG works
+- [Scripting Guide](scripting.md) - Automate debugging tasks
