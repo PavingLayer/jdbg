@@ -1,0 +1,59 @@
+[package]
+name = "jdbg"
+version = "0.1.0"
+edition = "2021"
+description = "Non-interactive, scriptable Java debugger CLI"
+authors = ["JDBG Contributors"]
+license = "MIT"
+
+[[bin]]
+name = "jdbg"
+path = "src/main.rs"
+
+[dependencies]
+# CLI framework with shell completions
+clap = { version = "4.4", features = ["derive", "env", "string"] }
+clap_complete = "4.4"
+
+# gRPC client
+tonic = "0.10"
+prost = "0.12"
+prost-types = "0.12"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Unix domain socket support
+tokio-stream = "0.1"
+tower = "0.4"
+hyper = "0.14"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Terminal colors and formatting
+colored = "2.1"
+tabled = "0.15"
+
+# Home directory
+dirs = "5.0"
+
+# Configuration
+toml = "0.8"
+
+# Unix signal handling
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[build-dependencies]
+tonic-build = "0.10"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

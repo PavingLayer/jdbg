@@ -1,0 +1,48 @@
+# Build outputs
+target/
+/cli/target/
+/server/target/
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Rust
+Cargo.lock
+*.rlib
+*.rmeta
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+*.swp
+*.swo
+*~
+
+# JDBG state
+.jdbg/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation build output
+/doc/book/
+/doc/mermaid.min.js
+/doc/mermaid-init.js

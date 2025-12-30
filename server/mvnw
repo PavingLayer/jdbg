@@ -1,0 +1,25 @@
+#!/bin/sh
+# Maven Wrapper - downloads and runs Maven
+
+set -e
+
+MAVEN_VERSION="3.9.6"
+MAVEN_HOME="$HOME/.m2/wrapper/dists/apache-maven-$MAVEN_VERSION"
+MAVEN_DOWNLOAD_URL="https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz"
+
+# Find project root
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Download Maven if not present
+if [ ! -d "$MAVEN_HOME" ]; then
+    echo "Downloading Maven $MAVEN_VERSION..."
+    mkdir -p "$HOME/.m2/wrapper/dists"
+    TEMP_FILE=$(mktemp)
+    curl -sL "$MAVEN_DOWNLOAD_URL" -o "$TEMP_FILE"
+    tar -xzf "$TEMP_FILE" -C "$HOME/.m2/wrapper/dists"
+    rm "$TEMP_FILE"
+fi
+
+# Run Maven
+exec "$MAVEN_HOME/bin/mvn" "$@"

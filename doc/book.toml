@@ -1,0 +1,22 @@
+[book]
+title = "JDBG - Scriptable Java Debugger"
+authors = ["JDBG Contributors"]
+description = "Documentation for JDBG, a non-interactive Java debugger CLI"
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+git-repository-url = "https://github.com/your-org/jdbg"
+edit-url-template = "https://github.com/your-org/jdbg/edit/main/doc/{path}"
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+
+[output.html.fold]
+enable = true
+level = 1
+

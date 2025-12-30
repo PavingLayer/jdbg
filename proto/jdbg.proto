@@ -1,0 +1,636 @@
+syntax = "proto3";
+
+package jdbg;
+
+option java_package = "dev.jdbg.grpc";
+option java_multiple_files = true;
+
+// =============================================================================
+// Main Debugger Service
+// =============================================================================
+
+service DebuggerService {
+  // Session management
+  rpc AttachSession(AttachRequest) returns (SessionResponse);
+  rpc LaunchSession(LaunchRequest) returns (SessionResponse);
+  rpc DetachSession(SessionIdRequest) returns (StatusResponse);
+  rpc GetSessionStatus(SessionIdRequest) returns (SessionResponse);
+  rpc ListSessions(Empty) returns (SessionListResponse);
+  rpc SetActiveSession(SessionIdRequest) returns (StatusResponse);
+
+  // Breakpoint management
+  rpc AddBreakpoint(AddBreakpointRequest) returns (BreakpointResponse);
+  rpc RemoveBreakpoint(BreakpointIdRequest) returns (StatusResponse);
+  rpc EnableBreakpoint(BreakpointIdRequest) returns (BreakpointResponse);
+  rpc DisableBreakpoint(BreakpointIdRequest) returns (BreakpointResponse);
+  rpc ListBreakpoints(SessionIdRequest) returns (BreakpointListResponse);
+  rpc ClearBreakpoints(SessionIdRequest) returns (StatusResponse);
+
+  // Exception breakpoints
+  rpc CatchException(CatchExceptionRequest) returns (ExceptionBreakpointResponse);
+  rpc IgnoreException(ExceptionBreakpointIdRequest) returns (StatusResponse);
+  rpc ListExceptionBreakpoints(SessionIdRequest) returns (ExceptionBreakpointListResponse);
+
+  // Execution control
+  rpc Continue(SessionIdRequest) returns (StatusResponse);
+  rpc Suspend(SuspendRequest) returns (StatusResponse);
+  rpc Resume(ResumeRequest) returns (StatusResponse);
+  rpc Step(StepRequest) returns (StepResponse);
+  rpc RunTo(RunToRequest) returns (StatusResponse);
+
+  // Thread management
+  rpc ListThreads(SessionIdRequest) returns (ThreadListResponse);
+  rpc GetThreadInfo(ThreadRequest) returns (ThreadResponse);
+  rpc SelectThread(SelectThreadRequest) returns (StatusResponse);
+  rpc SuspendThread(ThreadRequest) returns (StatusResponse);
+  rpc ResumeThread(ThreadRequest) returns (StatusResponse);
+
+  // Frame management
+  rpc ListFrames(FrameListRequest) returns (FrameListResponse);
+  rpc SelectFrame(SelectFrameRequest) returns (StatusResponse);
+  rpc GetFrameInfo(FrameRequest) returns (FrameResponse);
+
+  // Variable inspection
+  rpc ListVariables(VariableListRequest) returns (VariableListResponse);
+  rpc GetVariable(GetVariableRequest) returns (VariableResponse);
+  rpc SetVariable(SetVariableRequest) returns (StatusResponse);
+
+  // Expression evaluation
+  rpc Evaluate(EvaluateRequest) returns (EvaluateResponse);
+
+  // Source context
+  rpc GetSourceContext(SourceContextRequest) returns (SourceContextResponse);
+
+  // Event streaming (for breakpoint hits, exceptions, etc.)
+  rpc SubscribeEvents(SessionIdRequest) returns (stream DebugEvent);
+}
+
+// =============================================================================
+// Completion Service - for shell tab completion
+// =============================================================================
+
+service CompletionService {
+  // Get available sessions for completion
+  rpc CompleteSessions(Empty) returns (CompletionResponse);
+  
+  // Get classes matching a prefix (for breakpoint locations)
+  rpc CompleteClasses(ClassCompletionRequest) returns (CompletionResponse);
+  
+  // Get methods for a class (for method breakpoints)
+  rpc CompleteMethods(MethodCompletionRequest) returns (CompletionResponse);
+  
+  // Get thread names/IDs for completion
+  rpc CompleteThreads(SessionIdRequest) returns (CompletionResponse);
+  
+  // Get variable names in current scope
+  rpc CompleteVariables(VariableCompletionRequest) returns (CompletionResponse);
+  
+  // Get breakpoint IDs for completion
+  rpc CompleteBreakpoints(SessionIdRequest) returns (CompletionResponse);
+  
+  // Get field names for an object
+  rpc CompleteFields(FieldCompletionRequest) returns (CompletionResponse);
+}
+
+// =============================================================================
+// Common Messages
+// =============================================================================
+
+message Empty {}
+
+message StatusResponse {
+  bool success = 1;
+  string message = 2;
+  JdbgError error = 3;
+}
+
+message JdbgError {
+  string code = 1;
+  string message = 2;
+  string detail = 3;
+}
+
+// =============================================================================
+// Session Messages
+// =============================================================================
+
+message AttachRequest {
+  string session_id = 1;  // Optional, auto-generated if empty
+  oneof target {
+    RemoteTarget remote = 2;
+    LocalTarget local = 3;
+  }
+}
+
+message RemoteTarget {
+  string host = 1;
+  int32 port = 2;
+  int32 timeout_ms = 3;
+}
+
+message LocalTarget {
+  int32 pid = 1;
+  int32 timeout_ms = 2;
+}
+
+message LaunchRequest {
+  string session_id = 1;
+  string main_class = 2;
+  string classpath = 3;
+  repeated string jvm_args = 4;
+  repeated string program_args = 5;
+  bool suspend = 6;
+}
+
+message SessionIdRequest {
+  string session_id = 1;  // Empty means active session
+}
+
+message SessionResponse {
+  Session session = 1;
+  JdbgError error = 2;
+}
+
+message SessionListResponse {
+  repeated Session sessions = 1;
+  string active_session_id = 2;
+  JdbgError error = 3;
+}
+
+message Session {
+  string id = 1;
+  SessionType type = 2;
+  SessionState state = 3;
+  string host = 4;
+  int32 port = 5;
+  int32 pid = 6;
+  string main_class = 7;
+  string vm_name = 8;
+  string vm_version = 9;
+  int64 created_at = 10;
+  int64 last_accessed_at = 11;
+  int64 selected_thread_id = 12;
+  int32 selected_frame_index = 13;
+}
+
+enum SessionType {
+  SESSION_TYPE_UNKNOWN = 0;
+  SESSION_TYPE_ATTACHED_REMOTE = 1;
+  SESSION_TYPE_ATTACHED_LOCAL = 2;
+  SESSION_TYPE_LAUNCHED = 3;
+}
+
+enum SessionState {
+  SESSION_STATE_UNKNOWN = 0;
+  SESSION_STATE_CREATED = 1;
+  SESSION_STATE_CONNECTED = 2;
+  SESSION_STATE_SUSPENDED = 3;
+  SESSION_STATE_RUNNING = 4;
+  SESSION_STATE_DISCONNECTED = 5;
+  SESSION_STATE_TERMINATED = 6;
+}
+
+// =============================================================================
+// Breakpoint Messages
+// =============================================================================
+
+message AddBreakpointRequest {
+  string session_id = 1;
+  oneof location {
+    LineLocation line = 2;
+    MethodLocation method = 3;
+  }
+  string condition = 4;
+  bool enabled = 5;
+}
+
+message LineLocation {
+  string class_name = 1;
+  int32 line_number = 2;
+}
+
+message MethodLocation {
+  string class_name = 1;
+  string method_name = 2;
+  string signature = 3;  // Optional method signature for overloads
+}
+
+message BreakpointIdRequest {
+  string breakpoint_id = 1;
+}
+
+message BreakpointResponse {
+  Breakpoint breakpoint = 1;
+  JdbgError error = 2;
+}
+
+message BreakpointListResponse {
+  repeated Breakpoint breakpoints = 1;
+  JdbgError error = 2;
+}
+
+message Breakpoint {
+  string id = 1;
+  string session_id = 2;
+  BreakpointType type = 3;
+  string class_name = 4;
+  int32 line_number = 5;
+  string method_name = 6;
+  string condition = 7;
+  bool enabled = 8;
+  int32 hit_count = 9;
+  int64 created_at = 10;
+  string location_string = 11;
+}
+
+enum BreakpointType {
+  BREAKPOINT_TYPE_UNKNOWN = 0;
+  BREAKPOINT_TYPE_LINE = 1;
+  BREAKPOINT_TYPE_METHOD = 2;
+  BREAKPOINT_TYPE_EXCEPTION = 3;
+}
+
+// =============================================================================
+// Exception Breakpoint Messages
+// =============================================================================
+
+message CatchExceptionRequest {
+  string session_id = 1;
+  string exception_class = 2;
+  bool caught = 3;
+  bool uncaught = 4;
+}
+
+message ExceptionBreakpointIdRequest {
+  string id = 1;
+}
+
+message ExceptionBreakpointResponse {
+  ExceptionBreakpoint breakpoint = 1;
+  JdbgError error = 2;
+}
+
+message ExceptionBreakpointListResponse {
+  repeated ExceptionBreakpoint breakpoints = 1;
+  JdbgError error = 2;
+}
+
+message ExceptionBreakpoint {
+  string id = 1;
+  string session_id = 2;
+  string exception_class = 3;
+  bool caught = 4;
+  bool uncaught = 5;
+  bool enabled = 6;
+  int64 created_at = 7;
+}
+
+// =============================================================================
+// Execution Control Messages
+// =============================================================================
+
+message SuspendRequest {
+  string session_id = 1;
+  int64 thread_id = 2;  // 0 means all threads
+}
+
+message ResumeRequest {
+  string session_id = 1;
+  int64 thread_id = 2;  // 0 means all threads
+}
+
+message StepRequest {
+  string session_id = 1;
+  int64 thread_id = 2;  // 0 means selected thread
+  StepDepth depth = 3;
+  StepSize size = 4;
+}
+
+message StepResponse {
+  bool success = 1;
+  StopReason stop_reason = 2;
+  ThreadLocation location = 3;
+  JdbgError error = 4;
+}
+
+enum StepDepth {
+  STEP_DEPTH_UNKNOWN = 0;
+  STEP_DEPTH_INTO = 1;
+  STEP_DEPTH_OVER = 2;
+  STEP_DEPTH_OUT = 3;
+}
+
+enum StepSize {
+  STEP_SIZE_UNKNOWN = 0;
+  STEP_SIZE_LINE = 1;
+  STEP_SIZE_INSTRUCTION = 2;
+}
+
+message RunToRequest {
+  string session_id = 1;
+  string class_name = 2;
+  int32 line_number = 3;
+}
+
+// =============================================================================
+// Thread Messages
+// =============================================================================
+
+message ThreadRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+}
+
+message SelectThreadRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+}
+
+message ThreadResponse {
+  ThreadInfo thread = 1;
+  JdbgError error = 2;
+}
+
+message ThreadListResponse {
+  repeated ThreadInfo threads = 1;
+  JdbgError error = 2;
+}
+
+message ThreadInfo {
+  int64 id = 1;
+  string name = 2;
+  ThreadStatus status = 3;
+  bool suspended = 4;
+  bool at_breakpoint = 5;
+  int32 frame_count = 6;
+  string thread_group = 7;
+}
+
+enum ThreadStatus {
+  THREAD_STATUS_UNKNOWN = 0;
+  THREAD_STATUS_ZOMBIE = 1;
+  THREAD_STATUS_RUNNING = 2;
+  THREAD_STATUS_SLEEPING = 3;
+  THREAD_STATUS_MONITOR = 4;
+  THREAD_STATUS_WAIT = 5;
+  THREAD_STATUS_NOT_STARTED = 6;
+}
+
+// =============================================================================
+// Frame Messages
+// =============================================================================
+
+message FrameListRequest {
+  string session_id = 1;
+  int64 thread_id = 2;  // 0 means selected thread
+  int32 start_index = 3;
+  int32 count = 4;  // 0 means all
+}
+
+message FrameRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+}
+
+message SelectFrameRequest {
+  string session_id = 1;
+  int32 frame_index = 2;
+}
+
+message FrameResponse {
+  FrameInfo frame = 1;
+  JdbgError error = 2;
+}
+
+message FrameListResponse {
+  repeated FrameInfo frames = 1;
+  int32 total_count = 2;
+  JdbgError error = 3;
+}
+
+message FrameInfo {
+  int32 index = 1;
+  string class_name = 2;
+  string method_name = 3;
+  string source_name = 4;
+  int32 line_number = 5;
+  bool is_native = 6;
+  string location_string = 7;
+}
+
+// =============================================================================
+// Variable Messages
+// =============================================================================
+
+message VariableListRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+}
+
+message GetVariableRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+  string name = 4;
+  int32 max_depth = 5;  // For object expansion
+}
+
+message SetVariableRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+  string name = 4;
+  string value = 5;
+}
+
+message VariableResponse {
+  Variable variable = 1;
+  JdbgError error = 2;
+}
+
+message VariableListResponse {
+  repeated Variable variables = 1;
+  JdbgError error = 2;
+}
+
+message Variable {
+  string name = 1;
+  string type = 2;
+  string value = 3;
+  VariableKind kind = 4;
+  bool is_expandable = 5;
+  repeated Variable children = 6;  // For expanded objects
+}
+
+enum VariableKind {
+  VARIABLE_KIND_UNKNOWN = 0;
+  VARIABLE_KIND_LOCAL = 1;
+  VARIABLE_KIND_ARGUMENT = 2;
+  VARIABLE_KIND_FIELD = 3;
+  VARIABLE_KIND_STATIC = 4;
+  VARIABLE_KIND_THIS = 5;
+}
+
+// =============================================================================
+// Evaluation Messages
+// =============================================================================
+
+message EvaluateRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+  string expression = 4;
+}
+
+message EvaluateResponse {
+  string result = 1;
+  string type = 2;
+  JdbgError error = 3;
+}
+
+// =============================================================================
+// Source Context Messages
+// =============================================================================
+
+message SourceContextRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+  int32 context_lines = 4;
+  repeated string source_paths = 5;
+}
+
+message SourceContextResponse {
+  string class_name = 1;
+  string method_name = 2;
+  string source_name = 3;
+  int32 current_line = 4;
+  repeated SourceLine lines = 5;
+  JdbgError error = 6;
+}
+
+message SourceLine {
+  int32 line_number = 1;
+  string content = 2;
+  bool is_current = 3;
+  bool has_breakpoint = 4;
+}
+
+// =============================================================================
+// Event Messages (for streaming)
+// =============================================================================
+
+message DebugEvent {
+  int64 timestamp = 1;
+  string session_id = 2;
+  oneof event {
+    BreakpointHitEvent breakpoint_hit = 3;
+    StepCompletedEvent step_completed = 4;
+    ExceptionEvent exception = 5;
+    ThreadStartEvent thread_start = 6;
+    ThreadDeathEvent thread_death = 7;
+    VmDeathEvent vm_death = 8;
+    VmDisconnectEvent vm_disconnect = 9;
+  }
+}
+
+message BreakpointHitEvent {
+  string breakpoint_id = 1;
+  ThreadLocation location = 2;
+}
+
+message StepCompletedEvent {
+  ThreadLocation location = 1;
+}
+
+message ExceptionEvent {
+  string exception_class = 1;
+  string message = 2;
+  bool caught = 3;
+  ThreadLocation location = 4;
+}
+
+message ThreadStartEvent {
+  ThreadInfo thread = 1;
+}
+
+message ThreadDeathEvent {
+  int64 thread_id = 1;
+  string thread_name = 2;
+}
+
+message VmDeathEvent {
+  int32 exit_code = 1;
+}
+
+message VmDisconnectEvent {
+  string reason = 1;
+}
+
+message ThreadLocation {
+  int64 thread_id = 1;
+  string thread_name = 2;
+  string class_name = 3;
+  string method_name = 4;
+  string source_name = 5;
+  int32 line_number = 6;
+}
+
+message StopReason {
+  StopReasonType type = 1;
+  string breakpoint_id = 2;
+  string exception_class = 3;
+}
+
+enum StopReasonType {
+  STOP_REASON_UNKNOWN = 0;
+  STOP_REASON_BREAKPOINT = 1;
+  STOP_REASON_STEP = 2;
+  STOP_REASON_EXCEPTION = 3;
+  STOP_REASON_SUSPEND = 4;
+}
+
+// =============================================================================
+// Completion Messages
+// =============================================================================
+
+message CompletionResponse {
+  repeated CompletionItem items = 1;
+  JdbgError error = 2;
+}
+
+message CompletionItem {
+  string value = 1;        // The completion value
+  string display = 2;      // Display text (can include type info)
+  string description = 3;  // Additional description
+}
+
+message ClassCompletionRequest {
+  string session_id = 1;
+  string prefix = 2;
+  int32 limit = 3;
+}
+
+message MethodCompletionRequest {
+  string session_id = 1;
+  string class_name = 2;
+  string prefix = 3;
+}
+
+message VariableCompletionRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+  string prefix = 4;
+}
+
+message FieldCompletionRequest {
+  string session_id = 1;
+  int64 thread_id = 2;
+  int32 frame_index = 3;
+  string object_expression = 4;
+  string prefix = 5;
+}
+

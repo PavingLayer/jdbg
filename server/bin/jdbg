@@ -1,0 +1,21 @@
+#!/bin/bash
+# JDBG - Non-interactive Java debugger CLI
+# This script wraps the Java application
+
+set -e
+
+# Find the directory containing this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Find the JAR file
+JAR_FILE="${PROJECT_DIR}/target/jdbg-0.1.0-SNAPSHOT.jar"
+
+if [[ ! -f "$JAR_FILE" ]]; then
+    echo "Error: JAR file not found. Build the project first with: mvn package" >&2
+    exit 1
+fi
+
+# Run the application
+exec java -jar "$JAR_FILE" "$@"
+
