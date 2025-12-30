@@ -3,6 +3,8 @@ package dev.jdbg.server;
 import com.sun.jdi.*;
 import com.sun.jdi.request.StepRequest;
 import dev.jdbg.grpc.*;
+import dev.jdbg.server.eval.ExpressionEvaluator;
+import dev.jdbg.server.eval.ExpressionEvaluator.EvaluationResult;
 import io.grpc.stub.StreamObserver;
 
 import java.io.IOException;
@@ -14,9 +16,11 @@ import java.util.*;
 public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServiceImplBase {
     
     private final SessionManager sessionManager;
+    private final ExpressionEvaluator expressionEvaluator;
     
     public DebuggerServiceImpl(final SessionManager sessionManager) {
         this.sessionManager = sessionManager;
+        this.expressionEvaluator = new ExpressionEvaluator();
     }
     
     @Override
@@ -658,48 +662,115 @@ public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServi
         try {
             final DebugSession session = sessionManager.getSession(request.getSessionId());
             final StackFrame frame = getFrame(session, request.getThreadId(), request.getFrameIndex());
+            final ThreadReference thread = session.getThread(request.getThreadId())
+                .orElseThrow(() -> new IllegalArgumentException("Thread not found"));
             
-            // Simple variable lookup for now
             final String expr = request.getExpression().trim();
-            Value value = null;
-            String type = "unknown";
             
-            if ("this".equals(expr)) {
-                value = frame.thisObject();
-            } else {
-                try {
-                    for (final LocalVariable var : frame.visibleVariables()) {
-                        if (var.name().equals(expr)) {
-                            value = frame.getValue(var);
-                            type = var.typeName();
-                            break;
-                        }
-                    }
-                } catch (final AbsentInformationException e) {
-                    // No debug info
+            // Fast path: simple variable lookup
+            final Value simpleValue = trySimpleLookup(expr, frame);
+            if (simpleValue != null || isSimpleExpression(expr)) {
+                if (simpleValue != null) {
+                    responseObserver.onNext(EvaluateResponse.newBuilder()
+                        .setResult(formatValue(simpleValue))
+                        .setType(getValueTypeName(simpleValue))
+                        .build());
+                } else {
+                    responseObserver.onNext(EvaluateResponse.newBuilder()
+                        .setError(JdbgError.newBuilder()
+                            .setCode("VARIABLE_NOT_FOUND")
+                            .setMessage("Variable not found: " + expr)
+                            .build())
+                        .build());
                 }
+                responseObserver.onCompleted();
+                return;
             }
             
-            if (value != null) {
-                responseObserver.onNext(EvaluateResponse.newBuilder()
-                    .setResult(formatValue(value))
-                    .setType(type)
-                    .build());
-            } else {
-                responseObserver.onNext(EvaluateResponse.newBuilder()
-                    .setError(JdbgError.newBuilder()
-                        .setCode("EVALUATION_FAILED")
-                        .setMessage("Could not evaluate: " + expr)
-                        .build())
-                    .build());
-            }
+            // Complex expression: compile and evaluate
+            final EvaluationResult result = expressionEvaluator.evaluate(expr, frame, thread);
+            
+            responseObserver.onNext(EvaluateResponse.newBuilder()
+                .setResult(result.getValueAsString())
+                .setType(result.getTypeName())
+                .build());
+            responseObserver.onCompleted();
+            
+        } catch (final ExpressionEvaluator.EvaluationException e) {
+            responseObserver.onNext(EvaluateResponse.newBuilder()
+                .setError(JdbgError.newBuilder()
+                    .setCode("EVALUATION_FAILED")
+                    .setMessage(e.getMessage())
+                    .build())
+                .build());
             responseObserver.onCompleted();
         } catch (final Exception e) {
             responseObserver.onNext(EvaluateResponse.newBuilder()
-                .setError(JdbgError.newBuilder().setMessage(e.getMessage()).build())
+                .setError(JdbgError.newBuilder()
+                    .setCode("EVALUATION_ERROR")
+                    .setMessage(e.getMessage())
+                    .build())
                 .build());
             responseObserver.onCompleted();
         }
+    }
+    
+    /**
+     * Checks if an expression is a simple identifier (variable name or 'this').
+     */
+    private boolean isSimpleExpression(final String expr) {
+        if ("this".equals(expr)) {
+            return true;
+        }
+        // Simple identifier: starts with letter/underscore, contains only alphanumerics/underscores
+        if (expr.isEmpty()) {
+            return false;
+        }
+        final char first = expr.charAt(0);
+        if (!Character.isJavaIdentifierStart(first)) {
+            return false;
+        }
+        for (int i = 1; i < expr.length(); i++) {
+            if (!Character.isJavaIdentifierPart(expr.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /**
+     * Tries to look up a simple variable by name.
+     */
+    private Value trySimpleLookup(final String expr, final StackFrame frame) {
+        if ("this".equals(expr)) {
+            try {
+                return frame.thisObject();
+            } catch (final Exception e) {
+                return null;
+            }
+        }
+        
+        try {
+            for (final LocalVariable var : frame.visibleVariables()) {
+                if (var.name().equals(expr)) {
+                    return frame.getValue(var);
+                }
+            }
+        } catch (final AbsentInformationException e) {
+            // No debug info
+        }
+        
+        return null;
+    }
+    
+    private String getValueTypeName(final Value value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof ObjectReference) {
+            return ((ObjectReference) value).referenceType().name();
+        }
+        return value.type().name();
     }
     
     // Source context
