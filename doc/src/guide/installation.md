@@ -11,7 +11,7 @@
 
 ```bash
 # Download and extract
-curl -LO https://github.com/your-org/jdbg/releases/latest/download/jdbg-linux-x86_64.tar.gz
+curl -LO https://github.com/PavingLayer/jdbg/releases/latest/download/jdbg-linux-x86_64.tar.gz
 tar xzf jdbg-linux-x86_64.tar.gz
 
 # Install CLI
@@ -29,7 +29,7 @@ sudo mv jdbg-server.jar /usr/local/share/jdbg/
 # - Rust toolchain (rustup.rs)
 # - Java 17+ and Maven
 
-git clone https://github.com/your-org/jdbg.git
+git clone https://github.com/PavingLayer/jdbg.git
 cd jdbg
 
 # Build CLI

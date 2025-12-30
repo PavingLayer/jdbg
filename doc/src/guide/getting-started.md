@@ -25,7 +25,7 @@ Download the latest release for your platform:
 
 ```bash
 # Linux/macOS
-curl -LO https://github.com/your-org/jdbg/releases/latest/download/jdbg-linux-x86_64.tar.gz
+curl -LO https://github.com/PavingLayer/jdbg/releases/latest/download/jdbg-linux-x86_64.tar.gz
 tar xzf jdbg-linux-x86_64.tar.gz
 sudo mv jdbg /usr/local/bin/
 sudo mv jdbg-server.jar /usr/local/share/jdbg/
@@ -35,7 +35,7 @@ sudo mv jdbg-server.jar /usr/local/share/jdbg/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/jdbg.git
+git clone https://github.com/PavingLayer/jdbg.git
 cd jdbg
 
 # Build the Rust CLI
