@@ -51,3 +51,4 @@ lcov.info
 /doc/book/
 /doc/mermaid.min.js
 /doc/mermaid-init.js
+server/.metals/

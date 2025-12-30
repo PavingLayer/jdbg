@@ -3,8 +3,8 @@ package dev.jdbg.server;
 import com.sun.jdi.*;
 import com.sun.jdi.request.StepRequest;
 import dev.jdbg.grpc.*;
-import dev.jdbg.server.eval.ExpressionEvaluator;
-import dev.jdbg.server.eval.ExpressionEvaluator.EvaluationResult;
+import dev.jdbg.server.eval.ExpressionParser;
+import dev.jdbg.server.eval.JdiInterpreter;
 import io.grpc.stub.StreamObserver;
 
 import java.io.IOException;
@@ -16,11 +16,9 @@ import java.util.*;
 public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServiceImplBase {
     
     private final SessionManager sessionManager;
-    private final ExpressionEvaluator expressionEvaluator;
     
     public DebuggerServiceImpl(final SessionManager sessionManager) {
         this.sessionManager = sessionManager;
-        this.expressionEvaluator = new ExpressionEvaluator();
     }
     
     @Override
@@ -665,38 +663,31 @@ public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServi
             final ThreadReference thread = session.getThread(request.getThreadId())
                 .orElseThrow(() -> new IllegalArgumentException("Thread not found"));
             
-            final String expr = request.getExpression().trim();
+            final String exprStr = request.getExpression().trim();
             
-            // Fast path: simple variable lookup
-            final Value simpleValue = trySimpleLookup(expr, frame);
-            if (simpleValue != null || isSimpleExpression(expr)) {
-                if (simpleValue != null) {
-                    responseObserver.onNext(EvaluateResponse.newBuilder()
-                        .setResult(formatValue(simpleValue))
-                        .setType(getValueTypeName(simpleValue))
-                        .build());
-                } else {
-                    responseObserver.onNext(EvaluateResponse.newBuilder()
-                        .setError(JdbgError.newBuilder()
-                            .setCode("VARIABLE_NOT_FOUND")
-                            .setMessage("Variable not found: " + expr)
-                            .build())
-                        .build());
-                }
-                responseObserver.onCompleted();
-                return;
-            }
+            // Parse the expression
+            final ExpressionParser parser = new ExpressionParser(exprStr);
+            final ExpressionParser.Expr expr = parser.parse();
             
-            // Complex expression: compile and evaluate
-            final EvaluationResult result = expressionEvaluator.evaluate(expr, frame, thread);
+            // Evaluate using JDI interpreter
+            final JdiInterpreter interpreter = new JdiInterpreter(session.getVm(), thread, frame);
+            final Value result = interpreter.evaluate(expr);
             
             responseObserver.onNext(EvaluateResponse.newBuilder()
-                .setResult(result.getValueAsString())
-                .setType(result.getTypeName())
+                .setResult(formatValue(result))
+                .setType(getValueTypeName(result))
                 .build());
             responseObserver.onCompleted();
             
-        } catch (final ExpressionEvaluator.EvaluationException e) {
+        } catch (final ExpressionParser.ParseException e) {
+            responseObserver.onNext(EvaluateResponse.newBuilder()
+                .setError(JdbgError.newBuilder()
+                    .setCode("PARSE_ERROR")
+                    .setMessage("Parse error: " + e.getMessage())
+                    .build())
+                .build());
+            responseObserver.onCompleted();
+        } catch (final JdiInterpreter.EvaluationException e) {
             responseObserver.onNext(EvaluateResponse.newBuilder()
                 .setError(JdbgError.newBuilder()
                     .setCode("EVALUATION_FAILED")
@@ -713,54 +704,6 @@ public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServi
                 .build());
             responseObserver.onCompleted();
         }
-    }
-    
-    /**
-     * Checks if an expression is a simple identifier (variable name or 'this').
-     */
-    private boolean isSimpleExpression(final String expr) {
-        if ("this".equals(expr)) {
-            return true;
-        }
-        // Simple identifier: starts with letter/underscore, contains only alphanumerics/underscores
-        if (expr.isEmpty()) {
-            return false;
-        }
-        final char first = expr.charAt(0);
-        if (!Character.isJavaIdentifierStart(first)) {
-            return false;
-        }
-        for (int i = 1; i < expr.length(); i++) {
-            if (!Character.isJavaIdentifierPart(expr.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-    
-    /**
-     * Tries to look up a simple variable by name.
-     */
-    private Value trySimpleLookup(final String expr, final StackFrame frame) {
-        if ("this".equals(expr)) {
-            try {
-                return frame.thisObject();
-            } catch (final Exception e) {
-                return null;
-            }
-        }
-        
-        try {
-            for (final LocalVariable var : frame.visibleVariables()) {
-                if (var.name().equals(expr)) {
-                    return frame.getValue(var);
-                }
-            }
-        } catch (final AbsentInformationException e) {
-            // No debug info
-        }
-        
-        return null;
     }
     
     private String getValueTypeName(final Value value) {
