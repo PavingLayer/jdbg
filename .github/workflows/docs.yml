@@ -45,6 +45,7 @@ jobs:
       - name: Build documentation
         run: |
           cd doc
+          mdbook-mermaid install
           mdbook build
 
       - name: Setup Pages
