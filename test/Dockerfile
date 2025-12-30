@@ -9,7 +9,7 @@
 FROM eclipse-temurin:17-jdk-jammy AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates build-essential pkg-config libssl-dev git \
+    curl ca-certificates build-essential pkg-config libssl-dev git protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust and coverage tools
