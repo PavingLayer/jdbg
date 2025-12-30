@@ -1,7 +1,7 @@
 # JDBG - Scriptable Java Debugger
 
-[![Integration Tests](https://github.com/your-org/jdbg/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/your-org/jdbg/actions/workflows/integration-tests.yml)
-[![codecov](https://codecov.io/gh/your-org/jdbg/graph/badge.svg)](https://codecov.io/gh/your-org/jdbg)
+[![Integration Tests](https://github.com/PavingLayer/jdbg/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/PavingLayer/jdbg/actions/workflows/integration-tests.yml)
+[![codecov](https://codecov.io/gh/PavingLayer/jdbg/graph/badge.svg)](https://codecov.io/gh/PavingLayer/jdbg)
 
 A **non-interactive, scriptable Java debugger CLI** designed for automation, CI/CD pipelines, and IDE integrations.
 
@@ -67,7 +67,7 @@ jdbg/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/jdbg.git
+git clone https://github.com/PavingLayer/jdbg.git
 cd jdbg
 
 # Build and install (to ~/.local)
