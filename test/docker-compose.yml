@@ -1,0 +1,20 @@
+# Docker Compose for JDBG Integration Tests
+#
+# Run tests:     docker compose -f test/docker-compose.yml up --build
+# Interactive:   docker compose -f test/docker-compose.yml run shell
+
+services:
+  tests:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile
+    image: jdbg-test:latest
+
+  shell:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile
+    image: jdbg-test:latest
+    entrypoint: ["/bin/bash"]
+    stdin_open: true
+    tty: true

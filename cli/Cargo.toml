@@ -6,6 +6,10 @@ description = "Non-interactive, scriptable Java debugger CLI"
 authors = ["JDBG Contributors"]
 license = "MIT"
 
+[lib]
+name = "jdbg_client"
+path = "src/lib.rs"
+
 [[bin]]
 name = "jdbg"
 path = "src/main.rs"
@@ -52,6 +56,11 @@ libc = "0.2"
 
 [build-dependencies]
 tonic-build = "0.10"
+
+[dev-dependencies]
+# For integration tests
+tokio-test = "0.4"
+libc = "0.2"
 
 [profile.release]
 lto = true

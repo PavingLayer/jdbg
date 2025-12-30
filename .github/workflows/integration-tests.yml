@@ -1,0 +1,222 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Build Server
+      run: cd server && ./mvnw package -DskipTests -q
+
+    - name: Build Test Target
+      run: |
+        mkdir -p test/test-target/target/classes
+        find test/test-target/src -name "*.java" -exec javac -d test/test-target/target/classes -g {} +
+
+    - name: Upload Server JAR
+      uses: actions/upload-artifact@v4
+      with:
+        name: server-jar
+        path: server/target/jdbg-server.jar
+        retention-days: 1
+
+    - name: Upload Server Classes (for coverage)
+      uses: actions/upload-artifact@v4
+      with:
+        name: server-classes
+        path: server/target/classes
+        retention-days: 1
+
+    - name: Upload Test Target
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-target
+        path: test/test-target/target/classes
+        retention-days: 1
+
+  # Integration tests with coverage for both Java server and Rust CLI
+  coverage:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Set up Rust
+      uses: dtolnay/rust-action@stable
+
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Cache Cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          cli/target
+        key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('cli/Cargo.lock') }}
+
+    - name: Download Server JAR
+      uses: actions/download-artifact@v4
+      with:
+        name: server-jar
+        path: server/target
+
+    - name: Download Server Classes
+      uses: actions/download-artifact@v4
+      with:
+        name: server-classes
+        path: server/target/classes
+
+    - name: Download Test Target
+      uses: actions/download-artifact@v4
+      with:
+        name: test-target
+        path: test/test-target/target/classes
+
+    - name: Download JaCoCo
+      run: |
+        cd server && ./mvnw dependency:get -Dartifact=org.jacoco:org.jacoco.agent:0.8.11:jar:runtime -q
+        cd server && ./mvnw dependency:get -Dartifact=org.jacoco:org.jacoco.cli:0.8.11:jar:nodeps -q
+
+    - name: Run integration tests with coverage
+      env:
+        JDBG_SERVER_JAR: ${{ github.workspace }}/server/target/jdbg-server.jar
+        TEST_TARGET_CLASSES: ${{ github.workspace }}/test/test-target/target/classes
+        JACOCO_AGENT: ~/.m2/repository/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar
+        COVERAGE_EXEC: ${{ github.workspace }}/coverage/jacoco-server
+      run: |
+        mkdir -p coverage
+        
+        # Run Rust tests with coverage (tests will start Java servers with JaCoCo)
+        cd cli
+        cargo llvm-cov --test integration_tests \
+          --lcov --output-path ../coverage/rust-lcov.info \
+          -- --test-threads=1
+        cd ..
+        
+        # Merge Java coverage files
+        JACOCO_CLI="${HOME}/.m2/repository/org/jacoco/org.jacoco.cli/0.8.11/org.jacoco.cli-0.8.11-nodeps.jar"
+        EXEC_FILES=$(find coverage -name "*.exec" 2>/dev/null | tr '\n' ' ')
+        
+        if [[ -n "$EXEC_FILES" ]]; then
+          echo "Merging Java coverage: $EXEC_FILES"
+          java -jar "$JACOCO_CLI" merge $EXEC_FILES --destfile coverage/jacoco-merged.exec
+          
+          # Generate Java coverage report
+          java -jar "$JACOCO_CLI" report coverage/jacoco-merged.exec \
+            --classfiles server/target/classes \
+            --sourcefiles server/src/main/java \
+            --xml coverage/java-coverage.xml \
+            --html coverage/java-html
+        fi
+        
+        echo "=== Coverage files ==="
+        ls -la coverage/
+
+    - name: Upload Java coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: coverage/java-coverage.xml
+        flags: java
+        name: java-server-coverage
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload Rust coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: coverage/rust-lcov.info
+        flags: rust
+        name: rust-cli-coverage
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload coverage artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: coverage/
+        retention-days: 7
+
+  # Quick test run without coverage
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+
+    - name: Set up Rust
+      uses: dtolnay/rust-action@stable
+
+    - name: Cache Cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          cli/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('cli/Cargo.lock') }}
+
+    - name: Download Server JAR
+      uses: actions/download-artifact@v4
+      with:
+        name: server-jar
+        path: server/target
+
+    - name: Download Test Target
+      uses: actions/download-artifact@v4
+      with:
+        name: test-target
+        path: test/test-target/target/classes
+
+    - name: Run integration tests
+      env:
+        JDBG_SERVER_JAR: ${{ github.workspace }}/server/target/jdbg-server.jar
+        TEST_TARGET_CLASSES: ${{ github.workspace }}/test/test-target/target/classes
+      run: |
+        cd cli
+        cargo test --test integration_tests -- --test-threads=1 --nocapture
+
+  docker-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build and test in Docker
+      run: |
+        docker build -t jdbg-test -f test/Dockerfile .
+        docker run --rm jdbg-test

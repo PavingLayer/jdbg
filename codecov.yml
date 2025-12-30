@@ -1,0 +1,64 @@
+# Codecov Configuration
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...100"
+  
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 5%
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+        informational: true
+
+# Flags are used to group coverage reports by language/component
+flags:
+  java:
+    paths:
+      - server/src/main/java/
+    carryforward: true
+  rust:
+    paths:
+      - cli/src/
+    carryforward: true
+
+# Comment settings for PRs
+comment:
+  layout: "header, diff, flags, components"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Ignore generated code and test files
+ignore:
+  - "server/target/**"
+  - "cli/target/**"
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/*_test.rs"
+  - "**/*Test.java"
+
+# Component breakdown
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+  individual_components:
+    - component_id: server
+      name: Java Server
+      paths:
+        - server/src/main/java/**
+    - component_id: cli
+      name: Rust CLI
+      paths:
+        - cli/src/**
+

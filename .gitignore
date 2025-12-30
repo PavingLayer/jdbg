@@ -42,6 +42,11 @@ Thumbs.db
 # Logs
 *.log
 
+# Coverage reports
+/coverage/
+*.exec
+lcov.info
+
 # Documentation build output
 /doc/book/
 /doc/mermaid.min.js

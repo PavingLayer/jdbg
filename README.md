@@ -1,5 +1,8 @@
 # JDBG - Scriptable Java Debugger
 
+[![Integration Tests](https://github.com/your-org/jdbg/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/your-org/jdbg/actions/workflows/integration-tests.yml)
+[![codecov](https://codecov.io/gh/your-org/jdbg/graph/badge.svg)](https://codecov.io/gh/your-org/jdbg)
+
 A **non-interactive, scriptable Java debugger CLI** designed for automation, CI/CD pipelines, and IDE integrations.
 
 Unlike `jdb` which requires a REPL-based interaction, JDBG exposes each debugger operation as a standalone CLI command.

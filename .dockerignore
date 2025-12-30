@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts (will be built in container)
+cli/target
+server/target
+test/test-target/target
+
+# IDE files
+.idea
+.vscode
+*.iml
+
+# Documentation build output
+doc/book
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local config
+.env
+.env.local
+
