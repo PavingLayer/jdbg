@@ -12,8 +12,8 @@ build-dir = "book"
 command = "mdbook-mermaid"
 
 [output.html]
-git-repository-url = "https://github.com/your-org/jdbg"
-edit-url-template = "https://github.com/your-org/jdbg/edit/main/doc/{path}"
+git-repository-url = "https://github.com/PavingLayer/jdbg"
+edit-url-template = "https://github.com/PavingLayer/jdbg/edit/main/doc/{path}"
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
 
 [output.html.fold]
