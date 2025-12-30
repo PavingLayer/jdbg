@@ -164,6 +164,8 @@ public final class ExpressionParser {
             // Check if it looks like a type name (identifier, possibly with dots and [])
             if (!Character.isJavaIdentifierStart(peek())) return false;
             
+            // Parse the potential type name
+            final int typeStart = pos;
             while (pos < source.length()) {
                 if (Character.isJavaIdentifierPart(peek())) {
                     pos++;
@@ -171,17 +173,53 @@ public final class ExpressionParser {
                     pos++;
                 } else if (peek() == '[') {
                     pos++;
-                    if (peek() == ']') pos++;
+                    skipWhitespace();
+                    if (peek() == ']') {
+                        pos++;
+                    } else {
+                        return false; // Array size expression, not type
+                    }
                 } else {
                     break;
                 }
             }
             
+            final String potentialType = source.substring(typeStart, pos);
+            
             skipWhitespace();
-            return peek() == ')';
+            if (peek() != ')') return false;
+            pos++; // Skip the ')'
+            skipWhitespace();
+            
+            // Now check what follows the ')'
+            // If it's an operator or closing bracket, it's probably NOT a cast
+            final char next = peek();
+            if (next == '+' || next == '-' || next == '*' || next == '/' || next == '%' ||
+                next == '&' || next == '|' || next == '^' || next == '=' || next == '!' ||
+                next == '<' || next == '>' || next == ')' || next == ']' || next == ',' ||
+                next == ';' || next == ':' || next == '?' || next == '\0') {
+                // Likely a parenthesized expression, not a cast
+                // Exception: if the type is a primitive or qualified name, it's probably a cast
+                if (isPrimitiveTypeName(potentialType) || potentialType.contains(".") || 
+                    potentialType.endsWith("[]") || Character.isUpperCase(potentialType.charAt(0))) {
+                    // Looks like a real type name
+                    return true;
+                }
+                return false;
+            }
+            
+            // What follows is likely an expression to be cast
+            return true;
         } finally {
             pos = savedPos;
         }
+    }
+    
+    private boolean isPrimitiveTypeName(final String name) {
+        return switch (name) {
+            case "int", "long", "short", "byte", "float", "double", "boolean", "char", "void" -> true;
+            default -> false;
+        };
     }
     
     private Expr parsePostfix() throws ParseException {
@@ -268,10 +306,12 @@ public final class ExpressionParser {
     
     private Expr parseNewExpression() throws ParseException {
         skipWhitespace();
-        final String typeName = parseTypeName();
+        // Parse base type name without array brackets
+        final String typeName = parseBaseTypeName();
         
+        skipWhitespace();
         if (peek() == '[') {
-            // Array creation: new Type[size]
+            // Array creation: new Type[size] or new Type[size][]...
             expect('[');
             final Expr size = parseOr();
             expect(']');
@@ -281,6 +321,30 @@ public final class ExpressionParser {
             final List<Expr> args = parseArguments();
             return new NewObjectExpr(typeName, args);
         }
+    }
+    
+    /**
+     * Parses a type name without array brackets (for use in 'new' expressions).
+     */
+    private String parseBaseTypeName() throws ParseException {
+        skipWhitespace();
+        final StringBuilder sb = new StringBuilder();
+        sb.append(parseIdentifier());
+        
+        // Handle qualified names (java.lang.String)
+        while (peek() == '.') {
+            final int savedPos = pos;
+            pos++;
+            skipWhitespace();
+            if (Character.isJavaIdentifierStart(peek())) {
+                sb.append('.').append(parseIdentifier());
+            } else {
+                pos = savedPos;
+                break;
+            }
+        }
+        
+        return sb.toString();
     }
     
     private List<Expr> parseArguments() throws ParseException {
