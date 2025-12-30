@@ -130,7 +130,7 @@ jobs:
         
         # Run Rust tests with coverage (tests will start Java servers with JaCoCo)
         cd cli
-        cargo llvm-cov --test integration_tests \
+        cargo llvm-cov \
           --lcov --output-path ../coverage/rust-lcov.info \
           -- --test-threads=1
         cd ..
@@ -233,7 +233,7 @@ jobs:
         TEST_TARGET_CLASSES: ${{ github.workspace }}/test/test-target/target/classes
       run: |
         cd cli
-        cargo test --test integration_tests -- --test-threads=1 --nocapture
+        cargo test -- --test-threads=1 --nocapture
 
   docker-test:
     runs-on: ubuntu-latest
