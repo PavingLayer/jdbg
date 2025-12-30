@@ -59,6 +59,23 @@ jdbg eval "str.toUpperCase()"        # String method
 jdbg eval '"hello".length()'         # Method on literal
 ```
 
+### Static Method Calls
+
+```bash
+jdbg eval "java.lang.Math.sqrt(4.0)"       # Static method: 2.0
+jdbg eval "java.lang.Math.abs(-42)"        # Static method: 42
+jdbg eval "java.lang.Math.max(10, 20)"     # Static method: 20
+jdbg eval 'Integer.parseInt("123")'        # Parse string to int: 123
+```
+
+### Static Field Access
+
+```bash
+jdbg eval "java.lang.Integer.MAX_VALUE"    # 2147483647
+jdbg eval "java.lang.Integer.MIN_VALUE"    # -2147483648
+jdbg eval "java.lang.Double.NaN"           # NaN
+```
+
 ### Array Access
 
 ```bash
@@ -156,7 +173,12 @@ jdbg -f json eval "this.name" | jq '{result, type}'
 ## Notes
 
 - Evaluation requires the thread to be suspended
+- **Method invocation** (including static methods) requires the thread to be suspended **at a breakpoint**
+  - Literal evaluation, variable lookup, field access, and arithmetic work without breakpoints
+  - Method calls only work when stopped at a breakpoint
 - Method calls execute in the target JVM and may have side effects
 - Be careful with methods that modify state
-- Some expressions may fail if required classes are not loaded
+- Static methods/fields require the class to be loaded in the target JVM
+  - Most standard library classes (java.lang.Math, Integer, etc.) are typically loaded
+  - Application classes must be used before they can be accessed
 - The evaluator uses JDI method invocation for method calls

@@ -58,11 +58,17 @@ public final class JdiInterpreter {
      */
     public Value evaluate(final Expr expr) throws EvaluationException {
         try {
-            return evalExpr(expr);
+            final Value result = evalExpr(expr);
+            // Ensure we never return a ClassReferenceMarker as a final result
+            if (result instanceof ClassReferenceMarker marker) {
+                throw new EvaluationException("Cannot use class '" + marker.type.name() + "' as a value");
+            }
+            return result;
         } catch (final EvaluationException e) {
             throw e;
         } catch (final Exception e) {
-            throw new EvaluationException("Evaluation failed: " + e.getMessage(), e);
+            final String message = e.getMessage() != null ? e.getMessage() : e.getClass().getName();
+            throw new EvaluationException("Evaluation failed: " + message, e);
         }
     }
     
@@ -125,15 +131,42 @@ public final class JdiInterpreter {
     private Value evalVariable(final VariableExpr var) throws EvaluationException {
         final Value value = localVariables.get(var.name());
         if (value == null && !localVariables.containsKey(var.name())) {
-            // Try as a class name for static access
-            final List<ReferenceType> types = vm.classesByName(var.name());
-            if (!types.isEmpty()) {
-                // Return a special marker or handle static class reference
-                throw new EvaluationException("Static class access not yet supported: " + var.name());
-            }
             throw new EvaluationException("Variable not found: " + var.name());
         }
         return value;
+    }
+    
+    /**
+     * Tries to resolve an expression as a class name (for static access).
+     * Returns the ReferenceType if successful, null otherwise.
+     */
+    private ReferenceType tryResolveAsClassName(final Expr expr) {
+        final String className = extractPotentialClassName(expr);
+        if (className == null) {
+            return null;
+        }
+        
+        // Check if class is loaded - we only support already-loaded classes
+        final List<ReferenceType> types = vm.classesByName(className);
+        return types.isEmpty() ? null : types.get(0);
+    }
+    
+    /**
+     * Extracts a potential class name from an expression.
+     * For example, java.lang.Math becomes "java.lang.Math"
+     */
+    private String extractPotentialClassName(final Expr expr) {
+        if (expr instanceof VariableExpr var) {
+            return var.name();
+        }
+        if (expr instanceof FieldAccessExpr field) {
+            final String prefix = extractPotentialClassName(field.target());
+            if (prefix == null) {
+                return null;
+            }
+            return prefix + "." + field.fieldName();
+        }
+        return null;
     }
     
     private Value evalThis() throws EvaluationException {
@@ -144,7 +177,38 @@ public final class JdiInterpreter {
     }
     
     private Value evalFieldAccess(final FieldAccessExpr expr) throws Exception {
+        // First, try to resolve the entire expression as a class name (for static access)
+        final ReferenceType classRef = tryResolveAsClassName(expr);
+        if (classRef != null) {
+            // This is a class reference, not a field access - return marker for static access
+            return new ClassReferenceMarker(classRef);
+        }
+        
+        // Check if target is a class reference for static field access
+        final ReferenceType targetClass = tryResolveAsClassName(expr.target());
+        if (targetClass != null) {
+            // Static field access
+            final Field field = targetClass.fieldByName(expr.fieldName());
+            if (field == null) {
+                throw new EvaluationException("Static field not found: " + expr.fieldName() + " in " + targetClass.name());
+            }
+            if (!field.isStatic()) {
+                throw new EvaluationException("Field " + expr.fieldName() + " is not static");
+            }
+            return targetClass.getValue(field);
+        }
+        
+        // Instance field access
         final Value targetValue = evalExpr(expr.target());
+        
+        // Handle ClassReferenceMarker from nested field access
+        if (targetValue instanceof ClassReferenceMarker marker) {
+            final Field field = marker.type.fieldByName(expr.fieldName());
+            if (field == null) {
+                throw new EvaluationException("Static field not found: " + expr.fieldName() + " in " + marker.type.name());
+            }
+            return marker.type.getValue(field);
+        }
         
         if (targetValue == null) {
             throw new EvaluationException("Cannot access field '" + expr.fieldName() + "' on null");
@@ -166,8 +230,63 @@ public final class JdiInterpreter {
         return obj.getValue(field);
     }
     
+    /**
+     * Marker class to represent a class reference (for static method/field access).
+     * This is a workaround since JDI's Value hierarchy doesn't include class references.
+     */
+    private static final class ClassReferenceMarker extends ObjectReferenceImpl {
+        final ReferenceType type;
+        
+        ClassReferenceMarker(final ReferenceType type) {
+            this.type = type;
+        }
+    }
+    
+    /**
+     * Minimal implementation to satisfy ObjectReference interface.
+     * Only used as a marker, never actually used as a real ObjectReference.
+     */
+    private static abstract class ObjectReferenceImpl implements ObjectReference {
+        @Override public ReferenceType referenceType() { throw new UnsupportedOperationException(); }
+        @Override public Value getValue(Field sig) { throw new UnsupportedOperationException(); }
+        @Override public Map<Field, Value> getValues(List<? extends Field> fields) { throw new UnsupportedOperationException(); }
+        @Override public void setValue(Field field, Value value) { throw new UnsupportedOperationException(); }
+        @Override public Value invokeMethod(ThreadReference thread, Method method, List<? extends Value> arguments, int options) { throw new UnsupportedOperationException(); }
+        @Override public void disableCollection() { throw new UnsupportedOperationException(); }
+        @Override public void enableCollection() { throw new UnsupportedOperationException(); }
+        @Override public boolean isCollected() { throw new UnsupportedOperationException(); }
+        @Override public long uniqueID() { throw new UnsupportedOperationException(); }
+        @Override public List<ThreadReference> waitingThreads() { throw new UnsupportedOperationException(); }
+        @Override public ThreadReference owningThread() { throw new UnsupportedOperationException(); }
+        @Override public int entryCount() { throw new UnsupportedOperationException(); }
+        @Override public List<ObjectReference> referringObjects(long maxReferrers) { throw new UnsupportedOperationException(); }
+        @Override public Type type() { throw new UnsupportedOperationException(); }
+        @Override public VirtualMachine virtualMachine() { throw new UnsupportedOperationException(); }
+    }
+    
     private Value evalMethodCall(final MethodCallExpr expr) throws Exception {
-        // Evaluate target (null means implicit this or static call)
+        // Evaluate arguments first
+        final List<Value> args = new ArrayList<>();
+        for (final Expr arg : expr.arguments()) {
+            args.add(evalExpr(arg));
+        }
+        
+        // Check if this is a static method call (target is a class name)
+        if (expr.target() != null) {
+            final String potentialClassName = extractPotentialClassName(expr.target());
+            if (potentialClassName != null) {
+                final ReferenceType targetClass = tryResolveAsClassName(expr.target());
+                if (targetClass != null) {
+                    // Static method call
+                    return invokeStaticMethod(targetClass, expr.methodName(), args);
+                }
+                // Class name pattern but class not loaded - give helpful error
+                throw new EvaluationException("Class not loaded: " + potentialClassName + 
+                    ". The class must be used by the program before it can be accessed.");
+            }
+        }
+        
+        // Evaluate target (null means implicit this)
         Value targetValue;
         if (expr.target() == null) {
             targetValue = thisObject;
@@ -176,6 +295,11 @@ public final class JdiInterpreter {
             }
         } else {
             targetValue = evalExpr(expr.target());
+        }
+        
+        // Handle ClassReferenceMarker (from field access that resolved to a class)
+        if (targetValue instanceof ClassReferenceMarker marker) {
+            return invokeStaticMethod(marker.type, expr.methodName(), args);
         }
         
         if (targetValue == null) {
@@ -188,12 +312,6 @@ public final class JdiInterpreter {
         
         final ObjectReference obj = (ObjectReference) targetValue;
         final ReferenceType type = obj.referenceType();
-        
-        // Evaluate arguments
-        final List<Value> args = new ArrayList<>();
-        for (final Expr arg : expr.arguments()) {
-            args.add(evalExpr(arg));
-        }
         
         // Find matching method
         final Method method = findMethod(type, expr.methodName(), args);
@@ -208,6 +326,30 @@ public final class JdiInterpreter {
             final ObjectReference exception = e.exception();
             throw new EvaluationException("Method threw exception: " + exception.referenceType().name());
         }
+    }
+    
+    private Value invokeStaticMethod(final ReferenceType type, final String methodName, final List<Value> args) throws Exception {
+        // Find matching static method
+        final Method method = findMethod(type, methodName, args);
+        if (method == null) {
+            throw new EvaluationException("Static method not found: " + methodName + " with " + args.size() + " arguments in " + type.name());
+        }
+        
+        if (!method.isStatic()) {
+            throw new EvaluationException("Method " + methodName + " is not static");
+        }
+        
+        // Invoke static method
+        if (type instanceof ClassType classType) {
+            try {
+                return classType.invokeMethod(thread, method, args, ClassType.INVOKE_SINGLE_THREADED);
+            } catch (final InvocationException e) {
+                final ObjectReference exception = e.exception();
+                throw new EvaluationException("Method threw exception: " + exception.referenceType().name());
+            }
+        }
+        
+        throw new EvaluationException("Cannot invoke static method on non-class type: " + type.name());
     }
     
     private Method findMethod(final ReferenceType type, final String name, final List<Value> args) {

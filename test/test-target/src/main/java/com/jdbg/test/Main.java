@@ -24,6 +24,12 @@ public final class Main {
         System.out.println("JDBG Test Target - Starting");
         System.out.println("PID: " + ProcessHandle.current().pid());
         
+        // Force load common classes for static method testing
+        @SuppressWarnings("unused")
+        final double mathLoad = Math.sqrt(4.0);
+        @SuppressWarnings("unused") 
+        final int intLoad = Integer.parseInt("0");
+        
         final String mode = args.length > 0 ? args[0] : "all";
         
         switch (mode) {
