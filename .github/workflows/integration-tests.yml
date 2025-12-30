@@ -102,8 +102,12 @@ jobs:
 
     - name: Download JaCoCo
       run: |
-        cd server && ./mvnw dependency:get -Dartifact=org.jacoco:org.jacoco.agent:0.8.11:jar:runtime -q
-        cd server && ./mvnw dependency:get -Dartifact=org.jacoco:org.jacoco.cli:0.8.11:jar:nodeps -q
+        mkdir -p ~/.m2/repository/org/jacoco/org.jacoco.agent/0.8.11
+        mkdir -p ~/.m2/repository/org/jacoco/org.jacoco.cli/0.8.11
+        curl -sL https://repo1.maven.org/maven2/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar \
+          -o ~/.m2/repository/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar
+        curl -sL https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/0.8.11/org.jacoco.cli-0.8.11-nodeps.jar \
+          -o ~/.m2/repository/org/jacoco/org.jacoco.cli/0.8.11/org.jacoco.cli-0.8.11-nodeps.jar
 
     - name: Run integration tests with coverage
       env:
