@@ -116,10 +116,17 @@ jobs:
       env:
         JDBG_SERVER_JAR: ${{ github.workspace }}/server/target/jdbg-server.jar
         TEST_TARGET_CLASSES: ${{ github.workspace }}/test/test-target/target/classes
-        JACOCO_AGENT: ~/.m2/repository/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar
+        JACOCO_AGENT: ${{ github.workspace }}/.jacoco/org.jacoco.agent-0.8.11-runtime.jar
         COVERAGE_EXEC: ${{ github.workspace }}/coverage/jacoco-server
       run: |
         mkdir -p coverage
+        
+        # Copy JaCoCo agent to workspace for proper path resolution
+        mkdir -p .jacoco
+        cp ~/.m2/repository/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar .jacoco/
+        
+        echo "JACOCO_AGENT=$JACOCO_AGENT"
+        ls -la .jacoco/
         
         # Run Rust tests with coverage (tests will start Java servers with JaCoCo)
         cd cli
@@ -130,9 +137,13 @@ jobs:
         
         # Merge Java coverage files
         JACOCO_CLI="${HOME}/.m2/repository/org/jacoco/org.jacoco.cli/0.8.11/org.jacoco.cli-0.8.11-nodeps.jar"
+        
+        echo "=== Looking for .exec files ==="
+        find coverage -name "*.exec" -ls 2>/dev/null || echo "No .exec files found"
+        
         EXEC_FILES=$(find coverage -name "*.exec" 2>/dev/null | tr '\n' ' ')
         
-        if [[ -n "$EXEC_FILES" ]]; then
+        if [[ -n "$EXEC_FILES" && "$EXEC_FILES" != " " ]]; then
           echo "Merging Java coverage: $EXEC_FILES"
           java -jar "$JACOCO_CLI" merge $EXEC_FILES --destfile coverage/jacoco-merged.exec
           
@@ -142,12 +153,15 @@ jobs:
             --sourcefiles server/src/main/java \
             --xml coverage/java-coverage.xml \
             --html coverage/java-html
+        else
+          echo "No Java coverage data found - skipping Java coverage report"
         fi
         
         echo "=== Coverage files ==="
         ls -la coverage/
 
     - name: Upload Java coverage to Codecov
+      if: hashFiles('coverage/java-coverage.xml') != ''
       uses: codecov/codecov-action@v4
       with:
         files: coverage/java-coverage.xml
