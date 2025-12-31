@@ -51,6 +51,11 @@ public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServi
                 return;
             }
             
+            // Set the session name if provided
+            if (!request.getName().isEmpty()) {
+                session.setName(request.getName());
+            }
+            
             responseObserver.onNext(SessionResponse.newBuilder()
                 .setSession(session.toProto())
                 .build());
@@ -61,6 +66,89 @@ public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServi
                     .setCode("CONNECTION_FAILED")
                     .setMessage(e.getMessage())
                     .build())
+                .build());
+            responseObserver.onCompleted();
+        }
+    }
+    
+    @Override
+    public void renameSession(final RenameSessionRequest request, final StreamObserver<StatusResponse> responseObserver) {
+        try {
+            final DebugSession session = sessionManager.getSession(request.getSessionId());
+            session.setName(request.getNewName());
+            responseObserver.onNext(StatusResponse.newBuilder().setSuccess(true).build());
+            responseObserver.onCompleted();
+        } catch (final Exception e) {
+            responseObserver.onNext(StatusResponse.newBuilder()
+                .setSuccess(false)
+                .setError(JdbgError.newBuilder().setMessage(e.getMessage()).build())
+                .build());
+            responseObserver.onCompleted();
+        }
+    }
+    
+    @Override
+    public void getStatus(final SessionIdRequest request, final StreamObserver<StatusOverviewResponse> responseObserver) {
+        try {
+            final DebugSession session = sessionManager.getSession(request.getSessionId());
+            final List<ThreadReference> threads = session.getThreads();
+            
+            int suspendedCount = 0;
+            final List<SuspendedThreadInfo> suspendedThreads = new ArrayList<>();
+            
+            for (final ThreadReference thread : threads) {
+                if (thread.isSuspended()) {
+                    suspendedCount++;
+                    
+                    // Check if this thread is at a breakpoint
+                    final Optional<String> bpId = session.getBreakpointForThread(thread.uniqueID());
+                    final boolean atBreakpoint = bpId.isPresent();
+                    
+                    String breakpointLocation = "";
+                    if (atBreakpoint) {
+                        final var bpInfo = session.getBreakpointInfos().get(bpId.get());
+                        if (bpInfo != null) {
+                            breakpointLocation = bpInfo.getLocationString();
+                        }
+                    }
+                    
+                    // Get current location
+                    String currentLocation = "";
+                    try {
+                        if (thread.frameCount() > 0) {
+                            final Location loc = thread.frame(0).location();
+                            currentLocation = loc.declaringType().name() + "." + 
+                                            loc.method().name() + ":" + loc.lineNumber();
+                        }
+                    } catch (final IncompatibleThreadStateException e) {
+                        // Thread not suspended properly
+                    }
+                    
+                    suspendedThreads.add(SuspendedThreadInfo.newBuilder()
+                        .setThreadId(thread.uniqueID())
+                        .setThreadName(thread.name())
+                        .setAtBreakpoint(atBreakpoint)
+                        .setBreakpointId(bpId.orElse(""))
+                        .setBreakpointLocation(breakpointLocation)
+                        .setCurrentLocation(currentLocation)
+                        .build());
+                }
+            }
+            
+            // JVM is "suspended" if all threads are suspended
+            final boolean jvmSuspended = suspendedCount == threads.size() && !threads.isEmpty();
+            
+            responseObserver.onNext(StatusOverviewResponse.newBuilder()
+                .setSession(session.toProto())
+                .setJvmSuspended(jvmSuspended)
+                .setSuspendedThreadCount(suspendedCount)
+                .setTotalThreadCount(threads.size())
+                .addAllSuspendedThreads(suspendedThreads)
+                .build());
+            responseObserver.onCompleted();
+        } catch (final Exception e) {
+            responseObserver.onNext(StatusOverviewResponse.newBuilder()
+                .setError(JdbgError.newBuilder().setMessage(e.getMessage()).build())
                 .build());
             responseObserver.onCompleted();
         }

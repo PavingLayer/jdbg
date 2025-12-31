@@ -91,18 +91,26 @@ public final class SessionManager {
         }
     }
     
-    public DebugSession getSession(final String sessionId) {
-        final String id = sessionId != null && !sessionId.isEmpty() ? sessionId : activeSessionId;
-        if (id == null) {
+    public DebugSession getSession(final String sessionIdOrName) {
+        final String lookup = sessionIdOrName != null && !sessionIdOrName.isEmpty() ? sessionIdOrName : activeSessionId;
+        if (lookup == null) {
             throw new IllegalStateException("No active session");
         }
         
-        final DebugSession session = sessions.get(id);
-        if (session == null) {
-            throw new IllegalArgumentException("Session not found: " + id);
+        // First try direct ID lookup
+        DebugSession session = sessions.get(lookup);
+        if (session != null) {
+            return session;
         }
         
-        return session;
+        // Then try name lookup
+        for (final DebugSession s : sessions.values()) {
+            if (lookup.equals(s.getName())) {
+                return s;
+            }
+        }
+        
+        throw new IllegalArgumentException("Session not found: " + lookup);
     }
     
     public Optional<DebugSession> getSessionOptional(final String sessionId) {

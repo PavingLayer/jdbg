@@ -34,12 +34,16 @@ public final class DebugSession {
     private final AtomicLong eventSequence = new AtomicLong(0);
     private volatile boolean eventsDropped = false;
     
+    private String name;
     private String host;
     private int port;
     private int pid;
     private volatile long selectedThreadId;
     private volatile int selectedFrameIndex;
     private volatile SessionState state = SessionState.SESSION_STATE_CONNECTED;
+    
+    // Track which threads hit which breakpoints
+    private final Map<Long, String> threadsAtBreakpoints = new ConcurrentHashMap<>();
     
     public DebugSession(final String id, final VirtualMachine vm, final SessionType type) {
         this.id = id;
@@ -70,6 +74,14 @@ public final class DebugSession {
     
     public void setState(final SessionState state) {
         this.state = state;
+    }
+    
+    public String getName() {
+        return name;
+    }
+    
+    public void setName(final String name) {
+        this.name = name;
     }
     
     public String getHost() {
@@ -433,10 +445,34 @@ public final class DebugSession {
             info.incrementHitCount();
         }
         
+        // Track this thread as being at a breakpoint
+        threadsAtBreakpoints.put(thread.uniqueID(), bpId);
+        
         // Auto-select the thread
         selectedThreadId = thread.uniqueID();
         selectedFrameIndex = 0;
         state = SessionState.SESSION_STATE_SUSPENDED;
+    }
+    
+    /**
+     * Check if a thread is suspended at a breakpoint.
+     */
+    public Optional<String> getBreakpointForThread(final long threadId) {
+        return Optional.ofNullable(threadsAtBreakpoints.get(threadId));
+    }
+    
+    /**
+     * Clear breakpoint tracking for a thread (called when resumed).
+     */
+    public void clearBreakpointForThread(final long threadId) {
+        threadsAtBreakpoints.remove(threadId);
+    }
+    
+    /**
+     * Get all threads currently at breakpoints.
+     */
+    public Map<Long, String> getThreadsAtBreakpoints() {
+        return Collections.unmodifiableMap(threadsAtBreakpoints);
     }
     
     public void close() {
@@ -452,6 +488,7 @@ public final class DebugSession {
     public Session toProto() {
         return Session.newBuilder()
             .setId(id)
+            .setName(name != null ? name : "")
             .setType(type)
             .setState(state)
             .setHost(host != null ? host : "")

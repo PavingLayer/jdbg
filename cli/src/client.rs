@@ -76,9 +76,10 @@ impl DebuggerClient {
     }
 
     // Session operations
-    pub async fn attach_remote(&mut self, session_id: Option<String>, host: &str, port: i32, timeout_ms: i32) -> Result<Session> {
+    pub async fn attach_remote(&mut self, session_id: Option<String>, host: &str, port: i32, timeout_ms: i32, name: Option<String>) -> Result<Session> {
         let request = AttachRequest {
             session_id: session_id.unwrap_or_default(),
+            name: name.unwrap_or_default(),
             target: Some(attach_request::Target::Remote(RemoteTarget {
                 host: host.to_string(),
                 port,
@@ -89,9 +90,10 @@ impl DebuggerClient {
         response.session.context("No session in response")
     }
 
-    pub async fn attach_local(&mut self, session_id: Option<String>, pid: i32, timeout_ms: i32) -> Result<Session> {
+    pub async fn attach_local(&mut self, session_id: Option<String>, pid: i32, timeout_ms: i32, name: Option<String>) -> Result<Session> {
         let request = AttachRequest {
             session_id: session_id.unwrap_or_default(),
+            name: name.unwrap_or_default(),
             target: Some(attach_request::Target::Local(LocalTarget {
                 pid,
                 timeout_ms,
@@ -99,6 +101,31 @@ impl DebuggerClient {
         };
         let response = self.inner.attach_session(request).await?.into_inner();
         response.session.context("No session in response")
+    }
+
+    pub async fn rename_session(&mut self, session_id: Option<String>, new_name: &str) -> Result<()> {
+        let request = RenameSessionRequest {
+            session_id: session_id.unwrap_or_default(),
+            new_name: new_name.to_string(),
+        };
+        let response = self.inner.rename_session(request).await?.into_inner();
+        if !response.success {
+            if let Some(e) = response.error {
+                anyhow::bail!("{}", e.message);
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn get_status(&mut self, session_id: Option<String>) -> Result<StatusOverviewResponse> {
+        let request = SessionIdRequest {
+            session_id: session_id.unwrap_or_default(),
+        };
+        let response = self.inner.get_status(request).await?.into_inner();
+        if let Some(e) = response.error {
+            anyhow::bail!("{}", e.message);
+        }
+        Ok(response)
     }
 
     pub async fn detach_session(&mut self, session_id: Option<String>) -> Result<()> {

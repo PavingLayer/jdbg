@@ -128,7 +128,7 @@ Newest event: 102ms ago
 
 ### `jdbg events subscribe`
 
-Subscribe to events (streaming, blocks indefinitely). Useful for real-time monitoring.
+Subscribe to real-time event streaming. Blocks indefinitely, printing events as they occur.
 
 ```bash
 jdbg events subscribe [OPTIONS]
@@ -137,7 +137,22 @@ jdbg events subscribe [OPTIONS]
 **Options:**
 - `-s, --session <ID>` - Session ID
 
-Note: This is the legacy streaming approach. For scripting, use `poll` and `wait` instead.
+**Use cases:**
+- Real-time monitoring in a separate terminal
+- Interactive debugging sessions
+- Continuous event logging
+
+**Example:**
+```bash
+# In one terminal, subscribe to events
+jdbg events subscribe
+
+# In another terminal, control execution
+jdbg exec continue
+jdbg exec step
+```
+
+For non-interactive scripting, `poll` and `wait` are usually more suitable as they allow synchronous control flow.
 
 ## Scripting Patterns
 

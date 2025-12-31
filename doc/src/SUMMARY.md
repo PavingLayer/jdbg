@@ -10,6 +10,7 @@
 
 # Commands
 
+- [Status](./commands/status.md)
 - [Session Management](./commands/session.md)
 - [Breakpoints](./commands/breakpoints.md)
 - [Execution Control](./commands/exec.md)

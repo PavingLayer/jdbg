@@ -83,8 +83,11 @@ cd jdbg
 # Start the JDBG server
 jdbg server start
 
-# Attach to a remote JVM
-jdbg session attach --host localhost --port 8000
+# Attach to a remote JVM (with optional name for easy reference)
+jdbg session attach --host prod-server --port 8000 --name prod
+
+# Check status - shows JVM state, suspended threads, breakpoints
+jdbg status
 
 # List threads
 jdbg thread list
@@ -92,16 +95,17 @@ jdbg thread list
 # Add a breakpoint
 jdbg bp add --class com.example.MyClass --line 42
 
-# Suspend and inspect
-jdbg exec suspend
+# Resume and wait for breakpoint
+jdbg exec continue
+jdbg events wait -t breakpoint --timeout 30000
+
+# Inspect when stopped
+jdbg status       # See which breakpoint was hit
 jdbg frame list
 jdbg var list
 
-# Resume execution
-jdbg exec continue
-
 # Get JSON output for scripting
-jdbg -f json thread list | jq '.data[].name'
+jdbg -f json status | jq '.suspended_threads[] | select(.at_breakpoint)'
 
 # Stop the server when done
 jdbg server stop
@@ -111,8 +115,9 @@ jdbg server stop
 
 | Category | Commands |
 |----------|----------|
+| **Status** | `status` - Show JVM state, suspended threads, and breakpoints |
 | **Server** | `server start`, `server stop`, `server status` |
-| **Session** | `session attach`, `session attach-pid`, `session detach`, `session list`, `session status`, `session select` |
+| **Session** | `session attach`, `session attach-pid`, `session detach`, `session list`, `session info`, `session select`, `session rename` |
 | **Breakpoints** | `bp add`, `bp remove`, `bp list`, `bp enable`, `bp disable`, `bp clear` |
 | **Execution** | `exec continue`, `exec suspend`, `exec resume`, `exec step` |
 | **Threads** | `thread list`, `thread select`, `thread suspend`, `thread resume` |
@@ -120,6 +125,7 @@ jdbg server stop
 | **Variables** | `var list`, `var get`, `var set` |
 | **Evaluation** | `eval <expression>` |
 | **Exceptions** | `exception catch`, `exception ignore`, `exception list` |
+| **Events** | `events poll`, `events wait`, `events clear`, `events info`, `events subscribe` |
 
 Use `jdbg --help` or `jdbg <command> --help` for detailed usage.
 

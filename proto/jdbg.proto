@@ -17,6 +17,10 @@ service DebuggerService {
   rpc GetSessionStatus(SessionIdRequest) returns (SessionResponse);
   rpc ListSessions(Empty) returns (SessionListResponse);
   rpc SetActiveSession(SessionIdRequest) returns (StatusResponse);
+  rpc RenameSession(RenameSessionRequest) returns (StatusResponse);
+
+  // Status overview (JVM state, suspended threads, breakpoints)
+  rpc GetStatus(SessionIdRequest) returns (StatusOverviewResponse);
 
   // Breakpoint management
   rpc AddBreakpoint(AddBreakpointRequest) returns (BreakpointResponse);
@@ -127,9 +131,10 @@ message JdbgError {
 
 message AttachRequest {
   string session_id = 1;  // Optional, auto-generated if empty
+  string name = 2;  // Human-readable name (optional)
   oneof target {
-    RemoteTarget remote = 2;
-    LocalTarget local = 3;
+    RemoteTarget remote = 3;
+    LocalTarget local = 4;
   }
 }
 
@@ -170,18 +175,43 @@ message SessionListResponse {
 
 message Session {
   string id = 1;
-  SessionType type = 2;
-  SessionState state = 3;
-  string host = 4;
-  int32 port = 5;
-  int32 pid = 6;
-  string main_class = 7;
-  string vm_name = 8;
-  string vm_version = 9;
-  int64 created_at = 10;
-  int64 last_accessed_at = 11;
-  int64 selected_thread_id = 12;
-  int32 selected_frame_index = 13;
+  string name = 2;  // Human-readable name (optional)
+  SessionType type = 3;
+  SessionState state = 4;
+  string host = 5;
+  int32 port = 6;
+  int32 pid = 7;
+  string main_class = 8;
+  string vm_name = 9;
+  string vm_version = 10;
+  int64 created_at = 11;
+  int64 last_accessed_at = 12;
+  int64 selected_thread_id = 13;
+  int32 selected_frame_index = 14;
+}
+
+message RenameSessionRequest {
+  string session_id = 1;  // ID or current name
+  string new_name = 2;
+}
+
+// Status overview showing JVM state and suspended threads
+message StatusOverviewResponse {
+  Session session = 1;
+  bool jvm_suspended = 2;  // All threads suspended?
+  int32 suspended_thread_count = 3;
+  int32 total_thread_count = 4;
+  repeated SuspendedThreadInfo suspended_threads = 5;  // Threads at breakpoints
+  JdbgError error = 6;
+}
+
+message SuspendedThreadInfo {
+  int64 thread_id = 1;
+  string thread_name = 2;
+  bool at_breakpoint = 3;  // Suspended due to breakpoint (vs manual suspend)
+  string breakpoint_id = 4;  // If at_breakpoint
+  string breakpoint_location = 5;  // e.g., "com.example.Main:42"
+  string current_location = 6;  // Current class:method:line
 }
 
 enum SessionType {

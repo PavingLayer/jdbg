@@ -9,6 +9,7 @@ pub mod exception;
 pub mod source;
 pub mod events;
 pub mod server;
+pub mod status;
 
 use clap::Subcommand;
 
@@ -24,7 +25,7 @@ pub enum SessionCommands {
         #[arg(long, short = 'p')]
         port: i32,
 
-        /// Session ID (auto-generated if not specified)
+        /// Session name (human-readable, for easy reference)
         #[arg(long, short = 'n')]
         name: Option<String>,
 
@@ -38,7 +39,7 @@ pub enum SessionCommands {
         /// Process ID
         pid: i32,
 
-        /// Session ID (auto-generated if not specified)
+        /// Session name (human-readable, for easy reference)
         #[arg(long, short = 'n')]
         name: Option<String>,
 
@@ -49,7 +50,7 @@ pub enum SessionCommands {
 
     /// Detach from a session
     Detach {
-        /// Session ID (default: active session)
+        /// Session ID or name (default: active session)
         #[arg(long, short = 's')]
         session: Option<String>,
 
@@ -58,9 +59,9 @@ pub enum SessionCommands {
         terminate: bool,
     },
 
-    /// Get session status
-    Status {
-        /// Session ID (default: active session)
+    /// Get session info
+    Info {
+        /// Session ID or name (default: active session)
         #[arg(long, short = 's')]
         session: Option<String>,
     },
@@ -70,8 +71,18 @@ pub enum SessionCommands {
 
     /// Select the active session
     Select {
-        /// Session ID to select
-        session_id: String,
+        /// Session ID or name to select
+        session: String,
+    },
+
+    /// Rename a session
+    Rename {
+        /// New name for the session
+        new_name: String,
+
+        /// Session ID or current name (default: active session)
+        #[arg(long, short = 's')]
+        session: Option<String>,
     },
 }
 

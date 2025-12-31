@@ -33,6 +33,13 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Show status overview (JVM state, suspended threads, breakpoints)
+    Status {
+        /// Session ID or name (default: active session)
+        #[arg(long, short = 's')]
+        session: Option<String>,
+    },
+
     /// Manage debugging sessions
     Session {
         #[command(subcommand)]
@@ -149,6 +156,7 @@ async fn main() -> Result<()> {
 
     // Execute the command
     let result = match cli.command {
+        Commands::Status { session } => status::execute(session, &cli.server, &output).await,
         Commands::Session { command } => session::execute(command, &cli.server, &output).await,
         Commands::Breakpoint { command } => breakpoint::execute(command, &cli.server, &output).await,
         Commands::Exec { command } => exec::execute(command, &cli.server, &output).await,

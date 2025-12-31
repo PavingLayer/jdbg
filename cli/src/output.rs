@@ -97,17 +97,18 @@ impl Output {
             return;
         }
 
-        println!("{}: {}", "Session".green().bold(), session.id.cyan());
+        let display_name = if !session.name.is_empty() {
+            format!("{} ({})", session.name.cyan(), session.id.dimmed())
+        } else {
+            session.id.cyan().to_string()
+        };
+        println!("{}: {}", "Session".green().bold(), display_name);
         println!("  {}: {:?}", "Type".dimmed(), session.r#type());
         println!("  {}: {:?}", "State".dimmed(), session.state());
         if !session.host.is_empty() {
-            println!("  {}: {}", "Host".dimmed(), session.host);
-        }
-        if session.port > 0 {
-            println!("  {}: {}", "Port".dimmed(), session.port);
-        }
-        if session.pid > 0 {
-            println!("  {}: {}", "PID".dimmed(), session.pid);
+            println!("  {}: {}:{}", "Target".dimmed(), session.host, session.port);
+        } else if session.pid > 0 {
+            println!("  {}: PID {}", "Target".dimmed(), session.pid);
         }
         if !session.vm_name.is_empty() {
             println!("  {}: {} {}", "VM".dimmed(), session.vm_name, session.vm_version);
@@ -132,13 +133,114 @@ impl Output {
         for s in sessions {
             let marker = if s.id == active_id { "*" } else { " " };
             let state = format!("{:?}", s.state());
+            
+            // Format connection info
+            let connection = if !s.host.is_empty() {
+                format!("{}:{}", s.host, s.port)
+            } else if s.pid > 0 {
+                format!("pid:{}", s.pid)
+            } else {
+                String::new()
+            };
+            
+            // Display name or ID
+            let display = if !s.name.is_empty() {
+                format!("{} ({})", s.name, s.id)
+            } else {
+                s.id.clone()
+            };
+            
             println!(
-                "  {} {} [{}] {:?}",
+                "  {} {} [{}] {} {}",
                 marker.green(),
-                s.id.cyan(),
+                display.cyan(),
                 state.yellow(),
-                s.r#type()
+                format!("{:?}", s.r#type()).dimmed(),
+                connection.dimmed()
             );
+        }
+    }
+
+    // Status overview formatting
+    pub fn print_status(&self, status: &crate::client::StatusOverviewResponse) {
+        if self.is_json() {
+            self.success(status);
+            return;
+        }
+
+        if let Some(session) = &status.session {
+            let display_name = if !session.name.is_empty() {
+                format!("{} ({})", session.name.cyan(), session.id.dimmed())
+            } else {
+                session.id.cyan().to_string()
+            };
+            println!("{}: {}", "Session".green().bold(), display_name);
+            
+            // Connection info
+            if !session.host.is_empty() {
+                println!("  {}: {}:{}", "Target".dimmed(), session.host, session.port);
+            } else if session.pid > 0 {
+                println!("  {}: PID {}", "Target".dimmed(), session.pid);
+            }
+        }
+
+        // JVM state
+        let jvm_state = if status.jvm_suspended {
+            "Suspended (all threads)".yellow().to_string()
+        } else if status.suspended_thread_count > 0 {
+            format!("{} of {} threads suspended",
+                    status.suspended_thread_count.to_string().yellow(),
+                    status.total_thread_count)
+        } else {
+            "Running".green().to_string()
+        };
+        println!("\n{}: {}", "JVM State".green().bold(), jvm_state);
+
+        // Suspended threads
+        let threads_at_breakpoints: Vec<_> = status.suspended_threads.iter()
+            .filter(|t| t.at_breakpoint)
+            .collect();
+        
+        if !threads_at_breakpoints.is_empty() {
+            println!("\n{}:", "Threads at Breakpoints".yellow().bold());
+            for t in threads_at_breakpoints {
+                println!(
+                    "  {} \"{}\" at {} (bp: {})",
+                    format!("{}", t.thread_id).cyan(),
+                    t.thread_name,
+                    t.breakpoint_location.cyan(),
+                    t.breakpoint_id.dimmed()
+                );
+                if !t.current_location.is_empty() {
+                    println!("    → {}", t.current_location.dimmed());
+                }
+            }
+        }
+
+        // Other suspended threads (not at breakpoints)
+        let other_suspended: Vec<_> = status.suspended_threads.iter()
+            .filter(|t| !t.at_breakpoint)
+            .collect();
+        
+        if !other_suspended.is_empty() {
+            println!("\n{}:", "Other Suspended Threads".dimmed());
+            for t in other_suspended {
+                println!(
+                    "  {} \"{}\"{}",
+                    format!("{}", t.thread_id).cyan(),
+                    t.thread_name,
+                    if !t.current_location.is_empty() {
+                        format!(" at {}", t.current_location.dimmed())
+                    } else {
+                        String::new()
+                    }
+                );
+            }
+        }
+
+        // If nothing suspended
+        if status.suspended_threads.is_empty() && !status.jvm_suspended {
+            println!("\n{}", "No threads suspended".dimmed());
         }
     }
 
