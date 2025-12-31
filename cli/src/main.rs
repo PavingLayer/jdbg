@@ -23,6 +23,10 @@ pub struct Cli {
     #[arg(long, short = 'f', value_enum, default_value = "text")]
     pub format: output::OutputFormat,
 
+    /// Output in JSON format (shorthand for -f json)
+    #[arg(long, conflicts_with = "format")]
+    pub json: bool,
+
     /// Enable verbose output
     #[arg(long, short = 'v')]
     pub verbose: bool,
@@ -152,7 +156,12 @@ async fn main() -> Result<()> {
     }
 
     // Create output handler
-    let output = output::Output::new(cli.format, cli.verbose);
+    let format = if cli.json {
+        output::OutputFormat::Json
+    } else {
+        cli.format
+    };
+    let output = output::Output::new(format, cli.verbose);
 
     // Execute the command
     let result = match cli.command {
