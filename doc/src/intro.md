@@ -12,28 +12,34 @@ JDBG is a **non-interactive, scriptable Java debugger CLI** designed for automat
 
 ## Architecture
 
+<div align="center">
+
 ```mermaid
 flowchart LR
-    subgraph CLI["Rust CLI (~3MB)"]
+    subgraph CLI["CLI"]
         direction TB
         C1["⚡ Fast startup"]
-        C2["🔤 Tab complete"]
-        C3["📄 JSON/Text"]
+        C2["🔤 Tab completion"]
+        C3["📄 JSON / Text"]
+        C1 ~~~ C2 ~~~ C3
     end
 
-    subgraph Server["Java Server (~37MB)"]
+    subgraph Server["Server"]
         direction TB
-        S1["🔗 Persistent JDI"]
-        S2["📡 Event stream"]
+        S1["🔗 Persistent connections"]
+        S2["📡 Event streaming"]
+        S1 ~~~ S2
     end
 
     subgraph Target["Target JVM"]
-        T1[":8000"]
+        T1["🎯 Debug port"]
     end
 
-    CLI -->|"gRPC<br/>tcp://127.0.0.1:5005"| Server
+    CLI -->|"gRPC"| Server
     Server -->|"JDI"| Target
 ```
+
+</div>
 
 ## Quick Example
 
@@ -57,11 +63,8 @@ jdbg -f json bp list | jq '.data[].id'
 jdbg server stop
 ```
 
-## Non-Goals
+## What JDBG Is Not
 
-JDBG is **not**:
-
-- A replacement for IDE debuggers (IntelliJ, Eclipse, VSCode)
-- An interactive REPL debugger (use `jdb` for that)
-- A remote debugging protocol (it uses JDI internally)
+- **A GUI debugger** - JDBG is designed for terminal-based workflows, scripting, and automation. If you need visual debugging with breakpoint markers in source code, use an IDE.
+- **An interactive REPL** - Each command is standalone. For step-by-step interactive debugging, use `jdb`.
 

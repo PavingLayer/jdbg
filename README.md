@@ -18,27 +18,35 @@ Unlike `jdb` which requires a REPL-based interaction, JDBG exposes each debugger
 
 ## Architecture
 
+<div align="center">
+
 ```mermaid
 flowchart LR
-    subgraph CLI["Rust CLI"]
-        C1[Fast startup]
-        C2[Tab complete]
-        C3[JSON/Text output]
+    subgraph CLI["CLI"]
+        direction TB
+        C1["⚡ Fast startup"]
+        C2["🔤 Tab completion"]
+        C3["📄 JSON / Text"]
+        C1 ~~~ C2 ~~~ C3
     end
 
-    subgraph Server["Java Server"]
-        S1[Persistent JDI connections]
-        S2[Event streaming]
-        S3[Session management]
+    subgraph Server["Server"]
+        direction TB
+        S1["🔗 Persistent connections"]
+        S2["📡 Event streaming"]
+        S3["🗂️ Session management"]
+        S1 ~~~ S2 ~~~ S3
     end
 
     subgraph Target["Target JVM"]
-        T1[Debug port :8000]
+        T1["🎯 Debug port"]
     end
 
-    CLI -->|gRPC\ntcp://127.0.0.1:5005| Server
-    Server -->|JDI| Target
+    CLI -->|"gRPC"| Server
+    Server -->|"JDI"| Target
 ```
+
+</div>
 
 ## Project Structure
 
@@ -184,13 +192,10 @@ cd doc && mdbook serve --open
 | Server log | `~/.local/share/jdbg/server.log` | Server output |
 | PID file | `$XDG_RUNTIME_DIR/jdbg-server.pid` | Server process ID |
 
-## Non-Goals
+## What JDBG Is Not
 
-JDBG is **not**:
-
-- A replacement for IDE debuggers (IntelliJ, Eclipse, VSCode)
-- An interactive REPL debugger (use `jdb` for that)
-- A remote debugging protocol implementation
+- **A GUI debugger** - JDBG is designed for terminal-based workflows, scripting, and automation. If you need visual debugging with breakpoint markers in source code, use an IDE.
+- **An interactive REPL** - Each command is standalone. For step-by-step interactive debugging, use `jdb`.
 
 ## License
 

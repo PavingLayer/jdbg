@@ -8,6 +8,14 @@
 - [Installation](./guide/installation.md)
 - [Quick Start](./guide/quickstart.md)
 
+# How-to Guides
+
+- [Overview](./howto/index.md)
+- [Debug a Running Application](./howto/debug-running-app.md)
+- [Find the Cause of a Bug](./howto/find-bug.md)
+- [Debug Multi-threaded Code](./howto/multi-threaded.md)
+- [Automate Debugging Tasks](./howto/automation.md)
+
 # Commands
 
 - [Status](./commands/status.md)
@@ -29,3 +37,6 @@
 - [Shell Completions](./reference/completions.md)
 - [Configuration](./reference/config.md)
 
+# Contributing
+
+- [Development Guide](./contributing/index.md)

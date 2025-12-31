@@ -15,6 +15,7 @@ command = "mdbook-mermaid"
 git-repository-url = "https://github.com/PavingLayer/jdbg"
 edit-url-template = "https://github.com/PavingLayer/jdbg/edit/main/doc/{path}"
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
+additional-css = ["custom.css"]
 
 [output.html.fold]
 enable = true

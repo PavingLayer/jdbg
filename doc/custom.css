@@ -1,0 +1,5 @@
+/* Left-align tables instead of centering */
+.content main table {
+    margin-left: 0;
+    margin-right: auto;
+}
