@@ -176,7 +176,7 @@ impl TestFixture {
 
     pub async fn attach(&self, client: &mut DebuggerClient) -> anyhow::Result<jdbg_client::Session> {
         client
-            .attach_remote(None, "localhost", self.debug_port as i32, 5000)
+            .attach_remote(None, "localhost", self.debug_port as i32, 5000, None)
             .await
     }
 }
