@@ -18,6 +18,7 @@
 - [Variables](./commands/variables.md)
 - [Evaluation](./commands/eval.md)
 - [Exceptions](./commands/exceptions.md)
+- [Events](./commands/events.md)
 - [Server Management](./commands/server.md)
 
 # Reference

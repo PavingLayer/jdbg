@@ -8,12 +8,15 @@ import dev.jdbg.grpc.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
  * Represents a debugging session with a persistent JDI connection.
  */
 public final class DebugSession {
+    
+    private static final int DEFAULT_EVENT_BUFFER_CAPACITY = 1000;
     
     private final String id;
     private final VirtualMachine vm;
@@ -25,6 +28,11 @@ public final class DebugSession {
     private final Map<String, ExceptionBreakpointInfo> exceptionInfos = new ConcurrentHashMap<>();
     private final List<Consumer<DebugEvent>> eventListeners = new CopyOnWriteArrayList<>();
     private final EventProcessor eventProcessor;
+    
+    // Event buffer for non-blocking event retrieval
+    private final LinkedBlockingDeque<DebugEvent> eventBuffer = new LinkedBlockingDeque<>(DEFAULT_EVENT_BUFFER_CAPACITY);
+    private final AtomicLong eventSequence = new AtomicLong(0);
+    private volatile boolean eventsDropped = false;
     
     private String host;
     private int port;
@@ -304,14 +312,119 @@ public final class DebugSession {
     }
     
     void dispatchEvent(final DebugEvent event) {
+        // Add sequence number to event
+        final DebugEvent sequencedEvent = event.toBuilder()
+            .setSequenceNumber(eventSequence.incrementAndGet())
+            .build();
+        
+        // Buffer the event for polling
+        if (!eventBuffer.offerLast(sequencedEvent)) {
+            // Buffer full, remove oldest event
+            eventsDropped = true;
+            eventBuffer.pollFirst();
+            eventBuffer.offerLast(sequencedEvent);
+        }
+        
+        // Notify streaming listeners
         for (final Consumer<DebugEvent> listener : eventListeners) {
             try {
-                listener.accept(event);
+                listener.accept(sequencedEvent);
             } catch (final Exception e) {
                 // Log but don't propagate
                 e.printStackTrace();
             }
         }
+    }
+    
+    // Non-blocking event operations
+    
+    /**
+     * Poll for events without blocking.
+     * @param limit Maximum events to return (0 = all buffered)
+     * @param eventTypes Filter by event types (empty = all types)
+     * @return List of events
+     */
+    public List<DebugEvent> pollEvents(final int limit, final List<String> eventTypes) {
+        final List<DebugEvent> result = new ArrayList<>();
+        final int maxEvents = limit > 0 ? limit : Integer.MAX_VALUE;
+        
+        while (result.size() < maxEvents) {
+            final DebugEvent event = eventBuffer.pollFirst();
+            if (event == null) {
+                break;
+            }
+            if (eventTypes.isEmpty() || eventTypes.contains(event.getEventType())) {
+                result.add(event);
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Wait for events with timeout.
+     * @param timeoutMs Maximum time to wait in milliseconds (0 = use default timeout)
+     * @param eventTypes Filter by event types (empty = all types)
+     * @return List containing the event(s), or empty if timeout
+     */
+    public List<DebugEvent> waitForEvent(final int timeoutMs, final List<String> eventTypes) throws InterruptedException {
+        final int effectiveTimeout = timeoutMs > 0 ? timeoutMs : 30000; // Default 30s max
+        final long deadline = System.currentTimeMillis() + effectiveTimeout;
+        
+        while (System.currentTimeMillis() < deadline) {
+            final long remaining = deadline - System.currentTimeMillis();
+            if (remaining <= 0) {
+                break;
+            }
+            
+            final DebugEvent event = eventBuffer.pollFirst(remaining, TimeUnit.MILLISECONDS);
+            if (event != null) {
+                if (eventTypes.isEmpty() || eventTypes.contains(event.getEventType())) {
+                    return List.of(event);
+                }
+                // Event didn't match filter, keep waiting
+            }
+        }
+        
+        return List.of();
+    }
+    
+    /**
+     * Clear all buffered events.
+     */
+    public void clearEvents() {
+        eventBuffer.clear();
+        eventsDropped = false;
+    }
+    
+    /**
+     * Get event buffer info.
+     */
+    public EventInfoResponse getEventInfo() {
+        final EventInfoResponse.Builder builder = EventInfoResponse.newBuilder()
+            .setBufferedCount(eventBuffer.size())
+            .setBufferCapacity(DEFAULT_EVENT_BUFFER_CAPACITY)
+            .setEventsDropped(eventsDropped);
+        
+        // Get oldest/newest timestamps if buffer not empty
+        final DebugEvent oldest = eventBuffer.peekFirst();
+        final DebugEvent newest = eventBuffer.peekLast();
+        
+        if (oldest != null) {
+            builder.setOldestEventTimestamp(oldest.getTimestamp());
+        }
+        if (newest != null) {
+            builder.setNewestEventTimestamp(newest.getTimestamp());
+        }
+        
+        return builder.build();
+    }
+    
+    /**
+     * Get count of buffered events.
+     */
+    public int getEventBufferSize() {
+        return eventBuffer.size();
     }
     
     void handleBreakpointHit(final String bpId, final ThreadReference thread, final Location location) {

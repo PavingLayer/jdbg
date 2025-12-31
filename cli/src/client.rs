@@ -448,7 +448,44 @@ impl DebuggerClient {
         Ok(response)
     }
 
-    // Event subscription
+    // Event management (non-blocking)
+    pub async fn poll_events(&mut self, session_id: Option<String>, limit: i32, event_types: Vec<String>) -> Result<EventListResponse> {
+        let request = PollEventsRequest {
+            session_id: session_id.unwrap_or_default(),
+            limit,
+            event_types,
+        };
+        let response = self.inner.poll_events(request).await?.into_inner();
+        Ok(response)
+    }
+
+    pub async fn wait_for_event(&mut self, session_id: Option<String>, timeout_ms: i32, event_types: Vec<String>) -> Result<EventListResponse> {
+        let request = WaitForEventRequest {
+            session_id: session_id.unwrap_or_default(),
+            timeout_ms,
+            event_types,
+        };
+        let response = self.inner.wait_for_event(request).await?.into_inner();
+        Ok(response)
+    }
+
+    pub async fn clear_events(&mut self, session_id: Option<String>) -> Result<StatusResponse> {
+        let request = SessionIdRequest {
+            session_id: session_id.unwrap_or_default(),
+        };
+        let response = self.inner.clear_events(request).await?.into_inner();
+        Ok(response)
+    }
+
+    pub async fn get_event_info(&mut self, session_id: Option<String>) -> Result<EventInfoResponse> {
+        let request = SessionIdRequest {
+            session_id: session_id.unwrap_or_default(),
+        };
+        let response = self.inner.get_event_info(request).await?.into_inner();
+        Ok(response)
+    }
+
+    // Event subscription (streaming)
     pub async fn subscribe_events(&mut self, session_id: Option<String>) -> Result<tonic::Streaming<DebugEvent>> {
         let request = SessionIdRequest {
             session_id: session_id.unwrap_or_default(),

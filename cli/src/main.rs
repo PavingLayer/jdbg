@@ -113,11 +113,10 @@ pub enum Commands {
         session: Option<String>,
     },
 
-    /// Subscribe to debug events (breakpoint hits, exceptions, etc.)
+    /// Debug events (breakpoint hits, exceptions, etc.)
     Events {
-        /// Session ID (default: active session)
-        #[arg(long, short = 's')]
-        session: Option<String>,
+        #[command(subcommand)]
+        command: EventsCommands,
     },
 
     /// Generate shell completions
@@ -163,7 +162,7 @@ async fn main() -> Result<()> {
         Commands::Source { thread, frame, lines, session } => {
             source::execute(thread, frame, lines, session, &cli.server, &output).await
         }
-        Commands::Events { session } => events::execute(session, &cli.server, &output).await,
+        Commands::Events { command } => events::execute(command, &cli.server, &output).await,
         Commands::Server { command } => server::execute(command, &output).await,
         Commands::Completions { .. } => unreachable!(),
     };

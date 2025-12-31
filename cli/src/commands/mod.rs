@@ -385,6 +385,61 @@ pub enum ExceptionCommands {
 }
 
 #[derive(Subcommand)]
+pub enum EventsCommands {
+    /// Poll for events (non-blocking, returns immediately)
+    Poll {
+        /// Maximum events to return (0 = all buffered)
+        #[arg(long, short = 'n', default_value = "0")]
+        limit: i32,
+
+        /// Filter by event types (breakpoint, step, exception, thread_start, thread_death, vm_death, vm_disconnect)
+        #[arg(long, short = 't')]
+        types: Vec<String>,
+
+        /// Session ID (default: active session)
+        #[arg(long, short = 's')]
+        session: Option<String>,
+    },
+
+    /// Wait for next event (blocks until event occurs or timeout)
+    Wait {
+        /// Timeout in milliseconds (0 = default 30s)
+        #[arg(long, default_value = "0")]
+        timeout: i32,
+
+        /// Filter by event types
+        #[arg(long, short = 't')]
+        types: Vec<String>,
+
+        /// Session ID (default: active session)
+        #[arg(long, short = 's')]
+        session: Option<String>,
+    },
+
+    /// Clear all buffered events
+    Clear {
+        /// Session ID (default: active session)
+        #[arg(long, short = 's')]
+        session: Option<String>,
+    },
+
+    /// Get event buffer info
+    Info {
+        /// Session ID (default: active session)
+        #[arg(long, short = 's')]
+        session: Option<String>,
+    },
+
+    /// Subscribe to events (streaming, blocks indefinitely)
+    #[command(alias = "stream")]
+    Subscribe {
+        /// Session ID (default: active session)
+        #[arg(long, short = 's')]
+        session: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum ServerCommands {
     /// Start the JDBG daemon server
     Start {

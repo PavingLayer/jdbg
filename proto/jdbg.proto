@@ -61,7 +61,18 @@ service DebuggerService {
   // Source context
   rpc GetSourceContext(SourceContextRequest) returns (SourceContextResponse);
 
+  // Event management (non-blocking)
+  // Poll for events that have occurred (returns immediately)
+  rpc PollEvents(PollEventsRequest) returns (EventListResponse);
+  // Wait for next event with optional timeout
+  rpc WaitForEvent(WaitForEventRequest) returns (EventListResponse);
+  // Clear buffered events
+  rpc ClearEvents(SessionIdRequest) returns (StatusResponse);
+  // Get event buffer info (count, oldest timestamp, etc.)
+  rpc GetEventInfo(SessionIdRequest) returns (EventInfoResponse);
+
   // Event streaming (for breakpoint hits, exceptions, etc.)
+  // DEPRECATED: Use PollEvents/WaitForEvent for scriptable workflows
   rpc SubscribeEvents(SessionIdRequest) returns (stream DebugEvent);
 }
 
@@ -522,17 +533,50 @@ message SourceLine {
 // Event Messages (for streaming)
 // =============================================================================
 
+// =============================================================================
+// Event Management Messages (non-blocking)
+// =============================================================================
+
+message PollEventsRequest {
+  string session_id = 1;
+  int32 limit = 2;  // Max events to return (0 = all buffered)
+  repeated string event_types = 3;  // Filter by type: "breakpoint", "step", "exception", "thread", "vm"
+}
+
+message WaitForEventRequest {
+  string session_id = 1;
+  int32 timeout_ms = 2;  // Max time to wait (0 = infinite, but server may cap it)
+  repeated string event_types = 3;  // Filter by type
+}
+
+message EventListResponse {
+  repeated DebugEvent events = 1;
+  int32 remaining_count = 2;  // Events still in buffer
+  JdbgError error = 3;
+}
+
+message EventInfoResponse {
+  int32 buffered_count = 1;
+  int64 oldest_event_timestamp = 2;
+  int64 newest_event_timestamp = 3;
+  int32 buffer_capacity = 4;
+  bool events_dropped = 5;  // True if buffer overflowed
+  JdbgError error = 6;
+}
+
 message DebugEvent {
   int64 timestamp = 1;
   string session_id = 2;
+  int64 sequence_number = 3;  // Monotonic sequence for ordering
+  string event_type = 4;  // "breakpoint", "step", "exception", "thread_start", "thread_death", "vm_death", "vm_disconnect"
   oneof event {
-    BreakpointHitEvent breakpoint_hit = 3;
-    StepCompletedEvent step_completed = 4;
-    ExceptionEvent exception = 5;
-    ThreadStartEvent thread_start = 6;
-    ThreadDeathEvent thread_death = 7;
-    VmDeathEvent vm_death = 8;
-    VmDisconnectEvent vm_disconnect = 9;
+    BreakpointHitEvent breakpoint_hit = 10;
+    StepCompletedEvent step_completed = 11;
+    ExceptionEvent exception = 12;
+    ThreadStartEvent thread_start = 13;
+    ThreadDeathEvent thread_death = 14;
+    VmDeathEvent vm_death = 15;
+    VmDisconnectEvent vm_disconnect = 16;
   }
 }
 

@@ -745,7 +745,91 @@ public final class DebuggerServiceImpl extends DebuggerServiceGrpc.DebuggerServi
         }
     }
     
-    // Event streaming
+    // Event management (non-blocking)
+    @Override
+    public void pollEvents(final PollEventsRequest request, final StreamObserver<EventListResponse> responseObserver) {
+        try {
+            final DebugSession session = sessionManager.getSession(request.getSessionId());
+            final List<DebugEvent> events = session.pollEvents(
+                request.getLimit(), 
+                request.getEventTypesList()
+            );
+            
+            responseObserver.onNext(EventListResponse.newBuilder()
+                .addAllEvents(events)
+                .setRemainingCount(session.getEventBufferSize())
+                .build());
+            responseObserver.onCompleted();
+        } catch (final Exception e) {
+            responseObserver.onNext(EventListResponse.newBuilder()
+                .setError(JdbgError.newBuilder().setMessage(e.getMessage()).build())
+                .build());
+            responseObserver.onCompleted();
+        }
+    }
+    
+    @Override
+    public void waitForEvent(final WaitForEventRequest request, final StreamObserver<EventListResponse> responseObserver) {
+        try {
+            final DebugSession session = sessionManager.getSession(request.getSessionId());
+            final List<DebugEvent> events = session.waitForEvent(
+                request.getTimeoutMs(),
+                request.getEventTypesList()
+            );
+            
+            responseObserver.onNext(EventListResponse.newBuilder()
+                .addAllEvents(events)
+                .setRemainingCount(session.getEventBufferSize())
+                .build());
+            responseObserver.onCompleted();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            responseObserver.onNext(EventListResponse.newBuilder()
+                .setError(JdbgError.newBuilder()
+                    .setCode("INTERRUPTED")
+                    .setMessage("Wait was interrupted")
+                    .build())
+                .build());
+            responseObserver.onCompleted();
+        } catch (final Exception e) {
+            responseObserver.onNext(EventListResponse.newBuilder()
+                .setError(JdbgError.newBuilder().setMessage(e.getMessage()).build())
+                .build());
+            responseObserver.onCompleted();
+        }
+    }
+    
+    @Override
+    public void clearEvents(final SessionIdRequest request, final StreamObserver<StatusResponse> responseObserver) {
+        try {
+            final DebugSession session = sessionManager.getSession(request.getSessionId());
+            session.clearEvents();
+            responseObserver.onNext(StatusResponse.newBuilder().setSuccess(true).build());
+            responseObserver.onCompleted();
+        } catch (final Exception e) {
+            responseObserver.onNext(StatusResponse.newBuilder()
+                .setSuccess(false)
+                .setError(JdbgError.newBuilder().setMessage(e.getMessage()).build())
+                .build());
+            responseObserver.onCompleted();
+        }
+    }
+    
+    @Override
+    public void getEventInfo(final SessionIdRequest request, final StreamObserver<EventInfoResponse> responseObserver) {
+        try {
+            final DebugSession session = sessionManager.getSession(request.getSessionId());
+            responseObserver.onNext(session.getEventInfo());
+            responseObserver.onCompleted();
+        } catch (final Exception e) {
+            responseObserver.onNext(EventInfoResponse.newBuilder()
+                .setError(JdbgError.newBuilder().setMessage(e.getMessage()).build())
+                .build());
+            responseObserver.onCompleted();
+        }
+    }
+    
+    // Event streaming (deprecated - use pollEvents/waitForEvent for scripting)
     @Override
     public void subscribeEvents(final SessionIdRequest request, final StreamObserver<DebugEvent> responseObserver) {
         try {
