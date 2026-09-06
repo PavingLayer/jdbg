@@ -47,6 +47,7 @@ jobs:
           cd doc
           mdbook-mermaid install
           mdbook build
+          cp googleea9c9527f867b24c.html book/googleea9c9527f867b24c.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
