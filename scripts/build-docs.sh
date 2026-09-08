@@ -29,6 +29,13 @@ fi
 # Build the documentation
 mdbook build
 
+# mdBook's book.js assigns window.onunload to disable bfcache. Unload
+# listeners are deprecated (Lighthouse: "Uses deprecated APIs").
+find book -name 'book-*.js' -exec sed -i \
+    -e '/Fix back button cache problem/d' \
+    -e '/window\.onunload = function() { };/d' \
+    {} +
+
 echo ""
 echo "Documentation built successfully!"
 echo "Output: $DOC_DIR/book/"

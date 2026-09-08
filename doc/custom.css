@@ -3,3 +3,26 @@
     margin-left: 0;
     margin-right: auto;
 }
+
+/* mdBook's print/GitHub/edit icon links are 16px SVGs inside inline
+   anchors, which fail Lighthouse's 48px touch-target audit. */
+#mdbook-menu-bar .right-buttons {
+    display: flex;
+    align-items: stretch;
+    margin-inline: 0;
+}
+
+#mdbook-menu-bar .right-buttons a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    min-height: var(--menu-bar-height);
+    padding: 0 12px;
+    box-sizing: border-box;
+    text-decoration: none;
+}
+
+#mdbook-menu-bar .right-buttons a .fa-svg {
+    padding: 0;
+}

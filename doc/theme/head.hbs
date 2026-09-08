@@ -1,0 +1,13 @@
+<script>
+// mdBook's book.js assigns window.onunload to disable bfcache. Unload
+// listeners are deprecated and trip Lighthouse "Uses deprecated APIs".
+// Swallow the assignment so the native handler is never registered.
+(function () {
+    Object.defineProperty(window, 'onunload', {
+        configurable: true,
+        enumerable: true,
+        get: function () { return null; },
+        set: function () { /* ignore */ }
+    });
+})();
+</script>
