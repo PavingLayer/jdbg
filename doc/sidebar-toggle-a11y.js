@@ -30,17 +30,23 @@
         button.setAttribute('aria-expanded', checkbox.checked ? 'true' : 'false');
     }
 
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (event) => {
+        event.stopImmediatePropagation();
         const sidebar = document.getElementById('mdbook-sidebar');
-        if (sidebar && !checkbox.checked) {
+        const expanding = !checkbox.checked;
+        if (expanding && sidebar) {
             sidebar.style.display = '';
-            // Force reflow so the expansion animation runs (mdBook Safari workaround).
-            sidebar.offsetHeight;
+            requestAnimationFrame(() => {
+                checkbox.checked = true;
+                checkbox.dispatchEvent(new Event('change'));
+                syncExpanded();
+            });
+            return;
         }
-        checkbox.checked = !checkbox.checked;
+        checkbox.checked = false;
         checkbox.dispatchEvent(new Event('change'));
         syncExpanded();
-    });
+    }, true);
 
     checkbox.addEventListener('change', syncExpanded);
 })();

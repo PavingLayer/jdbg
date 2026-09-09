@@ -124,7 +124,7 @@
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
+            if (window.matchMedia('(min-width: 1080px)').matches) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
@@ -225,16 +225,24 @@
                         link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
                     });
                     // <button> does not toggle the CSS checkbox the way <label for> did.
-                    document.getElementById('mdbook-sidebar-toggle').addEventListener('click', function () {
+                    // Capture + stopImmediatePropagation so mdBook's book.js click
+                    // handler does not force a reflow via sidebar.offsetHeight.
+                    document.getElementById('mdbook-sidebar-toggle').addEventListener('click', function (event) {
+                        event.stopImmediatePropagation();
                         const checkbox = document.getElementById('mdbook-sidebar-toggle-anchor');
                         const nav = document.getElementById('mdbook-sidebar');
-                        if (nav && !checkbox.checked) {
+                        const expanding = !checkbox.checked;
+                        if (expanding && nav) {
                             nav.style.display = '';
-                            nav.offsetHeight;
+                            requestAnimationFrame(function () {
+                                checkbox.checked = true;
+                                checkbox.dispatchEvent(new Event('change'));
+                            });
+                            return;
                         }
-                        checkbox.checked = !checkbox.checked;
+                        checkbox.checked = false;
                         checkbox.dispatchEvent(new Event('change'));
-                    });
+                    }, true);
                 </script>
 
                 <div id="mdbook-content" class="content">
