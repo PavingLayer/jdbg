@@ -155,3 +155,9 @@ jdbg server stop
 - Use `jdbg server status` to check if the server is running
 - Log file is at `~/.local/share/jdbg/server.log`
 
+## Next Steps
+
+- [How-to Guides](../howto/index.md) — attach, find bugs, debug threads, automate
+- [Command reference](../commands/index.md)
+- [Configuration](../reference/config.md)
+

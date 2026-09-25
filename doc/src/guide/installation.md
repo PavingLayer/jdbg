@@ -1,5 +1,7 @@
 # Installation
 
+Install the JDBG CLI and Java debug server from a release archive, or build them from source.
+
 ## Requirements
 
 - **Rust CLI**: No runtime dependencies (statically linked)
@@ -183,3 +185,9 @@ export JDBG_SERVER_JAR=/path/to/jdbg-server.jar
 ```
 
 Or place it in the default location: `/usr/local/share/jdbg/jdbg-server.jar`
+
+## Next Steps
+
+- [Getting Started](getting-started.md) — enable debugging and run the first commands
+- [Quick Start](quickstart.md) — a full debugging session
+- [Configuration](../reference/config.md) — environment variables and config files

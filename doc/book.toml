@@ -1,7 +1,7 @@
 [book]
 title = "JDBG - Scriptable Java Debugger"
 authors = ["JDBG Contributors"]
-description = "Documentation for JDBG, a non-interactive Java debugger CLI"
+description = "Documentation for JDBG, a non-interactive, scriptable Java debugger CLI for automation, CI/CD, and IDE integrations."
 language = "en"
 src = "src"
 
@@ -14,6 +14,7 @@ command = "mdbook-mermaid"
 [output.html]
 git-repository-url = "https://github.com/PavingLayer/jdbg"
 edit-url-template = "https://github.com/PavingLayer/jdbg/edit/main/doc/{path}"
+site-url = "/jdbg/"
 additional-js = ["mermaid.min.js", "mermaid-loader.js", "sidebar-toggle-a11y.js"]
 additional-css = ["custom.css"]
 

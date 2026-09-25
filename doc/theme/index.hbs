@@ -8,6 +8,9 @@
         {{#if is_print }}
         <meta name="robots" content="noindex">
         {{/if}}
+        {{#if is_404 }}
+        <meta name="robots" content="noindex">
+        {{/if}}
         {{#if base_url}}
         <base href="{{ base_url }}">
         {{/if}}

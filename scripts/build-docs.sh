@@ -36,6 +36,8 @@ find book -name 'book-*.js' -exec sed -i \
     -e '/window\.onunload = function() { };/d' \
     {} +
 
+python3 "$SCRIPT_DIR/seo-docs.py" "$DOC_DIR/book" --src "$DOC_DIR/src"
+
 echo ""
 echo "Documentation built successfully!"
 echo "Output: $DOC_DIR/book/"

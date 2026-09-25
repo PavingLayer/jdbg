@@ -52,6 +52,7 @@ jobs:
               -e '/Fix back button cache problem/d' \
               -e '/window\.onunload = function() { };/d' \
               {} +
+          python3 ../scripts/seo-docs.py book --src src
           cp googleea9c9527f867b24c.html book/googleea9c9527f867b24c.html
 
       - name: Setup Pages

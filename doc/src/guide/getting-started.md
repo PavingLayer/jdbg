@@ -1,5 +1,7 @@
 # Getting Started
 
+This page covers prerequisites, installing JDBG, and the first commands to attach to a JVM and inspect it.
+
 ## Prerequisites
 
 - **Java 17+** - Required for the server component
@@ -107,6 +109,8 @@ jdbg server stop
 
 ## Next Steps
 
-- [Commands Reference](../commands/index.md) - Full command documentation
-- [Architecture](../architecture.md) - How JDBG works
-- [Scripting Guide](scripting.md) - Automate debugging tasks
+- [Quick Start](quickstart.md) — walk through a full debugging session
+- [How-to Guides](../howto/index.md) — attach, find bugs, debug threads, automate
+- [Command reference](../commands/index.md) — every CLI command
+- [Architecture](../reference/architecture.md) — how JDBG works
+- [Automate Debugging Tasks](../howto/automation.md) — scripting and CI/CD

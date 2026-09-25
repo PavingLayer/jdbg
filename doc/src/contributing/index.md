@@ -147,12 +147,11 @@ jdbg server stop
 ## Building Documentation
 
 ```bash
+# Production build (includes sitemap.xml, robots.txt, and SEO metadata)
+./scripts/build-docs.sh
+
+# Serve locally with hot reload (run the SEO step after a production build)
 cd doc
-
-# Build
-mdbook build
-
-# Serve locally with hot reload
 mdbook serve --open
 ```
 

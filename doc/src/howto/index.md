@@ -11,6 +11,8 @@ This section provides practical, goal-oriented guides for common debugging tasks
 | [Debug Multi-threaded Code](./multi-threaded.md) | Handle concurrent execution, thread-specific breakpoints |
 | [Automate Debugging Tasks](./automation.md) | Script debugging workflows, CI/CD integration |
 
+After the workflow, see the [command reference](../commands/index.md) for flags and output formats.
+
 ## Quick Reference
 
 ### Basic Workflow

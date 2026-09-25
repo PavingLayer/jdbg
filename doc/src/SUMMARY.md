@@ -1,6 +1,6 @@
 # Summary
 
-[Introduction](./intro.md)
+[Introduction](./index.md)
 
 # User Guide
 
@@ -18,6 +18,7 @@
 
 # Commands
 
+- [Command Reference](./commands/index.md)
 - [Status](./commands/status.md)
 - [Session Management](./commands/session.md)
 - [Breakpoints](./commands/breakpoints.md)
